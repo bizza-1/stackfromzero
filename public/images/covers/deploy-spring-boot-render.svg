@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 675" width="1200" height="675" role="img" aria-label="Deploy Spring Boot on Render">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#0a2540"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="675" fill="url(#bg)"/>
+  <!-- cloud -->
+  <g transform="translate(600 250)" fill="none" stroke="#0ea5e9" stroke-width="7">
+    <path d="M-150 40 a70 70 0 0 1 40 -132 a90 90 0 0 1 170 20 a60 60 0 0 1 -10 112 Z" fill="#0ea5e9" fill-opacity="0.12"/>
+  </g>
+  <!-- upload arrow -->
+  <g transform="translate(600 300)" stroke="#10b981" stroke-width="10" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <line x1="0" y1="70" x2="0" y2="-30"/>
+    <polyline points="-40,10 0,-30 40,10"/>
+  </g>
+  <g transform="translate(600 560)" fill="#e2e8f0" font-family="Segoe UI, Arial, sans-serif" text-anchor="middle">
+    <text font-size="46" font-weight="800">Deploy on Render</text>
+    <text y="42" font-size="26" fill="#94a3b8">Free hosting for students</text>
+  </g>
+  <g transform="translate(70 70)" fill="#10b981" font-family="Segoe UI, Arial, sans-serif">
+    <text font-size="26" font-weight="700">⬢ StackFromZero</text>
+  </g>
+</svg>

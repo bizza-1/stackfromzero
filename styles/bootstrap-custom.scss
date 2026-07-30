@@ -1,0 +1,449 @@
+// ============================================================
+// StackFromZero — Bootstrap 5.3 dark theme customization
+// ============================================================
+// 1. Include functions first (so we can manipulate colors, SVGs, calc, etc)
+@import "bootstrap/scss/functions";
+
+// 2. Override design-system variables BEFORE the variables/maps are compiled
+$primary:      #10b981; // emerald green
+$secondary:    #0ea5e9; // sky blue
+$body-bg:      #0f172a; // slate 950
+$body-color:   #f8fafc; // slate 50
+$border-color: #334155; // slate 700
+
+// Card surface (slate 800)
+$card-bg:            #1e293b;
+$card-border-color:  #334155;
+$card-cap-bg:        #1e293b;
+
+// Secondary text (slate 400)
+$text-muted: #94a3b8;
+
+// Link colors
+$link-color:              $primary;
+$link-hover-color:        shade-color($primary, 15%);
+$link-decoration:         none;
+$link-hover-decoration:   underline;
+
+// Typography
+$font-family-sans-serif: "Inter", system-ui, -apple-system, "Segoe UI", Roboto,
+  "Helvetica Neue", Arial, sans-serif;
+$headings-font-weight: 700;
+
+// Components
+$border-radius:    0.5rem;
+$border-radius-lg: 0.75rem;
+$border-radius-xl: 1rem;
+
+// Enable Bootstrap's built-in dark mode variables
+$enable-dark-mode: true;
+$color-mode-type: data;
+
+// 3. Include remainder of required Bootstrap stylesheets
+@import "bootstrap/scss/variables";
+@import "bootstrap/scss/variables-dark";
+
+// 4. Include any default map overrides here
+$body-secondary-color: #94a3b8;
+$body-tertiary-bg:      #1e293b;
+
+// 5. Include remainder of required parts
+@import "bootstrap/scss/maps";
+@import "bootstrap/scss/mixins";
+@import "bootstrap/scss/root";
+
+// 6. Optionally include any other parts as needed
+@import "bootstrap/scss/utilities";
+@import "bootstrap/scss/reboot";
+@import "bootstrap/scss/type";
+@import "bootstrap/scss/images";
+@import "bootstrap/scss/containers";
+@import "bootstrap/scss/grid";
+@import "bootstrap/scss/tables";
+@import "bootstrap/scss/forms";
+@import "bootstrap/scss/buttons";
+@import "bootstrap/scss/transitions";
+@import "bootstrap/scss/dropdown";
+@import "bootstrap/scss/button-group";
+@import "bootstrap/scss/nav";
+@import "bootstrap/scss/navbar";
+@import "bootstrap/scss/card";
+@import "bootstrap/scss/accordion";
+@import "bootstrap/scss/breadcrumb";
+@import "bootstrap/scss/pagination";
+@import "bootstrap/scss/badge";
+@import "bootstrap/scss/alert";
+@import "bootstrap/scss/progress";
+@import "bootstrap/scss/list-group";
+@import "bootstrap/scss/close";
+@import "bootstrap/scss/modal";
+@import "bootstrap/scss/spinners";
+
+// 7. Optionally include utilities API last to generate classes based on the Sass map
+@import "bootstrap/scss/utilities/api";
+
+// 8. Custom project styles ------------------------------------
+:root {
+  --sfz-primary: #{$primary};
+  --sfz-secondary: #{$secondary};
+  --sfz-card-bg: #1e293b;
+  --sfz-border: #334155;
+  --sfz-text-secondary: #94a3b8;
+}
+
+// Force dark color scheme
+html,
+body {
+  color-scheme: dark;
+  scroll-behavior: smooth;
+  scroll-padding-top: 90px; // offset for sticky navbar when jumping to anchors
+}
+
+body {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+// Card hover: border transitions to primary
+.article-card {
+  transition: border-color 0.2s ease, transform 0.2s ease,
+    box-shadow 0.2s ease;
+
+  &:hover {
+    border-color: $primary !important;
+    transform: translateY(-4px);
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
+  }
+
+  // Cover image banner at the top of each card.
+  .article-card-cover {
+    aspect-ratio: 16 / 9;
+    overflow: hidden;
+    background: linear-gradient(135deg, #0f172a, #1e293b);
+
+    img {
+      transition: transform 0.4s ease;
+    }
+  }
+
+  &:hover .article-card-cover img {
+    transform: scale(1.05);
+  }
+}
+
+// Heading anchors added by rehype-autolink-headings
+.heading-anchor {
+  color: inherit;
+  text-decoration: none;
+
+  &:hover {
+    color: $primary;
+  }
+}
+
+// Table of contents active state
+.toc-link {
+  color: $text-muted;
+  text-decoration: none;
+  border-left: 2px solid transparent;
+  transition: color 0.15s ease, border-color 0.15s ease;
+
+  &:hover {
+    color: $body-color;
+  }
+
+  &.active {
+    color: $primary;
+    border-left-color: $primary;
+    font-weight: 600;
+  }
+}
+
+// Article prose
+.article-prose {
+  font-size: 1.075rem;
+  line-height: 1.8;
+
+  h2 {
+    margin-top: 2.5rem;
+    margin-bottom: 1rem;
+    padding-top: 0.5rem;
+  }
+
+  h3 {
+    margin-top: 2rem;
+    margin-bottom: 0.75rem;
+  }
+
+  p,
+  ul,
+  ol {
+    margin-bottom: 1.25rem;
+  }
+
+  img {
+    max-width: 100%;
+    height: auto;
+    border-radius: $border-radius-lg;
+  }
+
+  :not(pre) > code {
+    background: rgba(148, 163, 184, 0.15);
+    color: #7dd3fc;
+    padding: 0.15rem 0.4rem;
+    border-radius: 0.3rem;
+    font-size: 0.9em;
+  }
+
+  blockquote {
+    border-left: 4px solid $primary;
+    padding-left: 1rem;
+    color: $text-muted;
+    font-style: italic;
+  }
+}
+
+// Code block wrapper + copy button
+.code-block-wrapper {
+  position: relative;
+
+  .copy-btn {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    z-index: 2;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+  }
+
+  &:hover .copy-btn {
+    opacity: 1;
+  }
+}
+
+pre {
+  background: #0d1117;
+  border: 1px solid $border-color;
+  border-radius: $border-radius-lg;
+  padding: 1.15rem 1.25rem;
+  overflow-x: auto;
+  margin-bottom: 1.5rem;
+
+  code {
+    background: transparent;
+    padding: 0;
+    font-size: 0.9rem;
+    line-height: 1.6;
+  }
+}
+
+// Hero gradient text — animated shifting gradient
+.hero-gradient {
+  background: linear-gradient(90deg, #10b981 0%, #0ea5e9 50%, #10b981 100%);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: sfz-gradient-shift 6s linear infinite;
+}
+
+@keyframes sfz-gradient-shift {
+  to {
+    background-position: 200% center;
+  }
+}
+
+// Honour reduced-motion for the CSS-driven gradient shimmer.
+@media (prefers-reduced-motion: reduce) {
+  .hero-gradient {
+    animation: none;
+  }
+}
+
+.bg-hero {
+  position: relative;
+  isolation: isolate; // keep the ::before layers behind hero content
+  // Emerald + sky glows sit on top of the photo for brand colour.
+  background: radial-gradient(
+      ellipse 80% 50% at 50% -20%,
+      rgba(16, 185, 129, 0.15),
+      transparent
+    ),
+    radial-gradient(
+      ellipse 60% 50% at 50% 10%,
+      rgba(14, 165, 233, 0.12),
+      transparent
+    );
+
+  // Photo background layer.
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -2;
+    background-image: url("/images/hero-2.jpg");
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+  }
+
+  // Dark overlay so text + gradient text stay legible over the photo.
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: linear-gradient(
+      180deg,
+      rgba(15, 23, 42, 0.82) 0%,
+      rgba(15, 23, 42, 0.88) 60%,
+      rgba(15, 23, 42, 1) 100%
+    );
+  }
+}
+
+// Utility surface classes
+.bg-card {
+  background-color: var(--sfz-card-bg) !important;
+}
+
+.text-secondary-custom {
+  color: var(--sfz-text-secondary) !important;
+}
+
+.border-custom {
+  border-color: var(--sfz-border) !important;
+}
+
+// ============================================================
+// Animation-related component styles
+// ============================================================
+
+// Reading progress bar — fixed under the sticky navbar, scaled by GSAP.
+.reading-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  z-index: 1050;
+  background: linear-gradient(90deg, $primary 0%, $secondary 100%);
+  transform: scaleX(0);
+  transform-origin: 0 50%;
+  will-change: transform;
+  pointer-events: none;
+}
+
+// Floating back-to-top button (GSAP toggles autoAlpha).
+.back-to-top {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  z-index: 1040;
+  width: 3rem;
+  height: 3rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+
+  // Reduced-motion fallback: toggle with a class, no tweening.
+  &--reduced {
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.2s ease, visibility 0.2s ease;
+
+    &.is-visible {
+      opacity: 1;
+      visibility: visible;
+    }
+  }
+}
+
+// Animated hamburger — morph the three lines into an X.
+.hamburger {
+  border: 0;
+  position: relative;
+  width: 2.25rem;
+  height: 2.25rem;
+
+  .navbar-toggler-icon {
+    background-image: none;
+    position: relative;
+    width: 1.5rem;
+    height: 2px;
+    background: $body-color;
+    transition: background 0.1s ease;
+    display: inline-block;
+
+    &::before,
+    &::after {
+      content: "";
+      position: absolute;
+      left: 0;
+      width: 1.5rem;
+      height: 2px;
+      background: $body-color;
+      transition: transform 0.25s ease;
+    }
+
+    &::before {
+      top: -7px;
+    }
+
+    &::after {
+      top: 7px;
+    }
+  }
+
+  &.is-open .navbar-toggler-icon {
+    background: transparent;
+
+    &::before {
+      transform: translateY(7px) rotate(45deg);
+    }
+
+    &::after {
+      transform: translateY(-7px) rotate(-45deg);
+    }
+  }
+}
+
+// Nav link hover underline that grows from the center.
+.nav-link-underline {
+  position: relative;
+
+  &::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    bottom: 0.25rem;
+    width: 0;
+    height: 2px;
+    background: $primary;
+    transform: translateX(-50%);
+    transition: width 0.25s ease;
+  }
+
+  &:hover::after,
+  &.active::after {
+    width: calc(100% - 1.5rem);
+  }
+}
+
+// Keep SplitText line wrapping tidy (no clipping of descenders).
+.split-line {
+  overflow: hidden;
+  padding-bottom: 0.05em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hamburger .navbar-toggler-icon,
+  .hamburger .navbar-toggler-icon::before,
+  .hamburger .navbar-toggler-icon::after,
+  .nav-link-underline::after {
+    transition: none;
+  }
+}

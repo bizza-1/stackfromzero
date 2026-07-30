@@ -1,0 +1,188 @@
+---
+title: "Deploying Spring Boot on Render.com: Free Hosting for Students"
+description: "Host your Java backend for $0. Step-by-step deployment guide."
+date: 2026-07-18
+tags: ["Spring Boot", "Deployment", "DevOps"]
+series: "Full-Stack Foundations"
+seriesOrder: 2
+image: "/images/covers/deploy-spring-boot-render.svg"
+published: true
+---
+
+You've built a Spring Boot API on your laptop and it works beautifully. But an API that only runs on `localhost` can't help anyone. To share it with the world — or just to test it from your phone — you need to deploy it somewhere with a public URL. This guide shows you how to do that for free on [Render.com](https://render.com), a platform that's genuinely friendly to students and side projects.
+
+<Callout type="tip" title="Why Render?">
+Render gives you a free web service tier, deploys straight from a Git push, provisions HTTPS automatically, and doesn't ask for a credit card to get started. For a learning project or an MVP, that's hard to beat.
+</Callout>
+
+## What free actually means
+
+Let's be honest about the free tier so there are no surprises. Render's free web services **spin down after 15 minutes of inactivity**. The next request wakes the service back up, which takes 30 to 60 seconds — a "cold start." For a portfolio project or a demo you're showing occasionally, that's perfectly fine. For a production app with real users, you'd upgrade to a paid instance that stays warm. We'll build with the free tier and note exactly where you'd upgrade later.
+
+## Preparing your Spring Boot app for production
+
+Your app needs three small changes before it's deploy-ready. None of them take more than a few minutes.
+
+### 1. Read the port from the environment
+
+Render assigns your app a port through the `PORT` environment variable, and your app must listen on it. Open `src/main/resources/application.properties` and add:
+
+```ini
+server.port=${PORT:8080}
+```
+
+This tells Spring Boot to use the `PORT` environment variable if it exists, and fall back to `8080` when running locally. The `${VARIABLE:default}` syntax is Spring's standard way to read environment values with a fallback.
+
+### 2. Make sure the build produces a JAR
+
+Spring Boot apps deploy as a single executable JAR file. If you generated your project with Spring Initializr, this already works out of the box. Confirm it by building locally:
+
+```bash
+./mvnw clean package -DskipTests
+```
+
+When it finishes, look in the `target/` directory. You should see something like `taskmanager-0.0.1-SNAPSHOT.jar`. That single file contains your entire application plus an embedded Tomcat server. You can even run it directly:
+
+```bash
+java -jar target/taskmanager-0.0.1-SNAPSHOT.jar
+```
+
+<Callout type="info" title="Why skip tests during the build?">
+We pass `-DskipTests` here only to get a fast build for inspection. On Render you'll usually let tests run so a broken build never deploys. Skip them locally, keep them in CI.
+</Callout>
+
+### 3. Commit everything to Git
+
+Render deploys from a Git repository, so your code needs to live on GitHub (or GitLab). If you haven't initialized Git yet:
+
+```bash
+git init
+git add .
+git commit -m "Prepare Spring Boot app for deployment"
+git branch -M main
+git remote add origin https://github.com/your-username/taskmanager.git
+git push -u origin main
+```
+
+Make sure you have a sensible `.gitignore` so you don't commit the `target/` directory or IDE files. The Spring Initializr generates a good one automatically.
+
+## Creating the Render web service
+
+Now the fun part. Sign in to Render with your GitHub account, then:
+
+1. Click **New +** in the top navigation and choose **Web Service**.
+2. Connect the GitHub repository containing your Spring Boot app.
+3. Render scans the repo and shows a configuration form. Fill it in as follows.
+
+For the **Runtime**, Render usually detects a Docker or native environment. For a plain Maven project, choose the native environment and set the commands manually.
+
+**Build Command:**
+
+```bash
+./mvnw clean package -DskipTests
+```
+
+**Start Command:**
+
+```bash
+java -jar target/*.jar
+```
+
+The wildcard `target/*.jar` means you don't have to hard-code the version number — it picks up whatever JAR the build produced. Select the **Free** instance type, then click **Create Web Service**.
+
+## Watching the first deploy
+
+Render immediately kicks off a build. You'll see the live logs stream in — Maven downloading dependencies, compiling your code, packaging the JAR, and finally your app starting up. Watch for the familiar Spring Boot banner and a line like:
+
+```plaintext
+Tomcat started on port(s): 10000 (http)
+Started TaskmanagerApplication in 4.2 seconds
+```
+
+That port number comes from Render's `PORT` variable — proof that step one worked. Once the deploy succeeds, Render gives you a public URL like `https://taskmanager-xyz.onrender.com`. Visit `https://taskmanager-xyz.onrender.com/api/tasks` and you should see your JSON, served over HTTPS, from the internet. You just shipped.
+
+## Adding a real database
+
+The in-memory H2 database resets on every restart, which on the free tier means your data vanishes whenever the service spins down. For anything persistent, add a real PostgreSQL database — and Render offers a free one.
+
+1. Click **New +** and choose **PostgreSQL**.
+2. Give it a name and select the free plan, then create it.
+3. Once provisioned, copy the **Internal Database URL** from its dashboard.
+
+Now update your Spring Boot app to use PostgreSQL. Add the driver to your `pom.xml`:
+
+```xml
+<dependency>
+    <groupId>org.postgresql</groupId>
+    <artifactId>postgresql</artifactId>
+    <scope>runtime</scope>
+</dependency>
+```
+
+Then, back in your web service's **Environment** settings on Render, add environment variables that Spring will read:
+
+```ini
+spring.datasource.url=${DATABASE_URL}
+spring.jpa.hibernate.ddl-auto=update
+spring.jpa.database-platform=org.hibernate.dialect.PostgreSQLDialect
+```
+
+Set `DATABASE_URL` to the internal connection string you copied. Because both the database and the web service live inside Render's network, using the internal URL keeps the connection fast and private — traffic never leaves Render's data center. Never paste real credentials into your source code or commit them to Git; environment variables exist precisely so secrets stay out of your repository.work, the internal URL is faster and free of egress charges. Redeploy, and your data now survives restarts.
+
+<Callout type="warning" title="Guard your connection string">
+Your database URL contains a username and password. Never commit it to Git or paste it into a public place. Always inject it through Render's environment variables, which are encrypted at rest.
+</Callout>
+
+## Continuous deployment
+
+Here's the payoff for wiring everything through Git: Render watches your `main` branch. Every time you push a commit, it automatically rebuilds and redeploys. Your workflow becomes as simple as:
+
+```bash
+git add .
+git commit -m "Add task filtering endpoint"
+git push
+```
+
+Within a couple of minutes your change is live. No manual uploads, no FTP, no servers to SSH into. This is modern deployment, and you get it for free.
+
+{/* Screenshot placeholder: Render dashboard showing a successful deploy with green "Live" badge */}
+{/* Screenshot placeholder: Environment variables tab with DATABASE_URL configured */}
+
+## Continuous deployment on every push
+
+Here's the part that feels like a superpower once you have it: Render watches your connected branch, so every time you push to `main`, it automatically rebuilds and redeploys. Your workflow becomes as simple as:
+
+```bash
+git add .
+git commit -m "Add task priority field"
+git push
+```
+
+Within a couple of minutes your change is live. There's no server to SSH into, no files to copy, no process to restart by hand. This is the same continuous-deployment model that professional teams spend real effort setting up, and you get it for free out of the box. If a deploy ever goes wrong, Render keeps your previous version running until the new build succeeds, and you can roll back to any earlier deploy with one click from the dashboard.
+
+## Adding a health check
+
+Render can ping an endpoint to confirm your app is actually healthy, not just running. Spring Boot Actuator gives you one for free. Add the dependency:
+
+```xml
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-actuator</artifactId>
+</dependency>
+```
+
+This exposes `/actuator/health`, which returns `{"status":"UP"}` when everything is well. In your Render service settings, set the **Health Check Path** to `/actuator/health`. Now Render only routes traffic to your service once it reports healthy, and it can restart the instance automatically if the check starts failing. It's a small addition that makes your deployment noticeably more robust.
+
+## Troubleshooting common issues
+
+**Build fails with "permission denied: ./mvnw".** The Maven wrapper script lost its executable bit. Fix it once with `git update-index --chmod=+x mvnw` and commit.
+
+**App builds but crashes on start.** Check the logs for the real exception. The most common cause is a database connection failing because `DATABASE_URL` is missing or wrong.
+
+**Requests time out on first load.** That's the free-tier cold start. The service was asleep and is waking up. Wait a minute and try again, or upgrade to a paid instance to keep it warm.
+
+## Where to go next
+
+You now have a Spring Boot API running in the cloud with a real database, HTTPS, and automatic deploys — all for zero cost. That's a professional setup, and it's the same pattern used by teams paying thousands a month; they just run bigger instances.
+
+Next, deploy your React front end to Vercel or Netlify (both free), point it at your new Render API URL, and you'll have a complete full-stack app live on the internet. If you haven't built the API yet, start with [How I Built a Full-Stack App with React and Spring Boot](/blog/react-spring-boot-tutorial).

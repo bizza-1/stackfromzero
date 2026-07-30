@@ -1,0 +1,32 @@
+
+> stackfromzero@1.0.0 dev
+> next dev
+
+  ▲ Next.js 14.2.35
+  - Local:        http://localhost:3000
+  - Environments: .env.local
+
+ ✓ Starting...
+Warning: Contentlayer might not work as expected on Windows
+ ✓ Ready in 14.1s
+Contentlayer config change detected. Updating type definitions and data...
+Generated 4 documents in .contentlayer
+ ○ Compiling / ...
+ ✓ Compiled / in 62.3s (845 modules)
+ GET / 200 in 68968ms
+ GET / 200 in 1902ms
+ GET / 200 in 229ms
+ ○ Compiling /privacy ...
+ ✓ Compiled /contact in 45s (791 modules)
+ GET /privacy 200 in 46775ms
+ GET /privacy 200 in 20145ms
+ GET /terms 200 in 20160ms
+ GET /contact 200 in 26993ms
+ GET /terms 200 in 884ms
+ GET /contact 200 in 617ms
+ GET /terms 200 in 166ms
+ ○ Compiling /newsletter ...
+ ✓ Compiled /about in 12s (811 modules)
+ ✓ Compiled in 3.4s (811 modules)
+ GET /contact 200 in 12856ms
+ GET / 200 in 3502ms

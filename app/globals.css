@@ -1,0 +1,62 @@
+/* Global tweaks layered on top of the compiled Bootstrap theme + highlight theme.
+   Bootstrap and the highlight theme are imported in app/layout.tsx. */
+
+::selection {
+  background: rgba(16, 185, 129, 0.3);
+}
+
+/* Thin custom scrollbar for the dark theme */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #334155 #0f172a;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: #0f172a;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 6px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
+
+/* Focus ring for accessibility */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+.btn:focus-visible {
+  outline: 2px solid #10b981;
+  outline-offset: 2px;
+}
+
+/* Sticky footer helper — main grows to push footer down */
+main {
+  flex: 1 0 auto;
+}
+
+/* Skip link for keyboard/screen-reader users */
+.skip-link {
+  position: absolute;
+  top: -60px;
+  left: 1rem;
+  z-index: 2000;
+  padding: 0.5rem 1rem;
+  background: #10b981;
+  color: #0f172a;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  transition: top 0.15s ease;
+}
+
+.skip-link:focus {
+  top: 1rem;
+}

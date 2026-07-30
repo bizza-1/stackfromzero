@@ -1,0 +1,342 @@
+---
+title: "The Complete Guide to Offline-First React Apps (For Slow Internet)"
+description: "Build React apps that work without internet. A practical guide for developers dealing with unreliable connections, expensive data, and NEPA blackouts."
+date: 2026-07-21
+tags: ["React", "PWA", "Offline-First", "Performance", "Africa"]
+series: "Full-Stack Foundations"
+seriesOrder: 3
+image: "/images/covers/offline-first-react.svg"
+published: true
+---
+
+You've built a beautiful React app. It fetches data from your API, displays it in sleek components, and your friends love it — until they open it on a bus with no signal, or their data bundle runs out, or NEPA takes the light and the WiFi dies. In Nigeria and much of Africa, the internet is not a guarantee. It's a luxury that comes and goes. This guide teaches you to build React apps that don't just survive offline — they thrive there.
+
+<Callout type="info" title="Why offline-first matters here">
+In Nigeria, mobile data costs roughly $1.40 per GB — about 7% of monthly minimum wage. Power outages are daily. 4G coverage is patchy outside major cities. An app that assumes always-on internet excludes most of your potential users. Offline-first is not a nice-to-have. It's accessibility.
+</Callout>
+
+## What "offline-first" actually means
+
+Most apps are **online-first**: they assume internet, break without it, and maybe cache a little data as an afterthought. Offline-first flips this. The app works immediately from local data. Network requests happen in the background to sync fresh data when possible. The user never sees a blank screen or a spinning loader because the WiFi dropped.
+
+The mental shift is simple but profound: **treat local data as the source of truth, and the network as an optional enhancement.**
+
+## The tools we'll use
+
+You don't need to invent this. Modern browsers and React ecosystems give you everything:
+
+| Tool | Purpose |
+|------|---------|
+| **Service Workers** | Intercept network requests, cache assets, enable background sync |
+| **Cache API** | Programmatic storage for API responses and static assets |
+| **IndexedDB** | Structured client-side database for large/complex data |
+| **localStorage / sessionStorage** | Simple key-value storage for small data |
+| **React Query (TanStack Query)** | Data fetching with built-in caching, background refetching, and offline support |
+| **PWA manifest** | Makes your app installable like a native app |
+
+We'll combine these into a practical pattern you can reuse in every project.
+
+## Step 1: Make your app a PWA
+
+A Progressive Web App is just a website with a manifest file and a service worker. It can be installed on phones, works offline, and feels like a native app. Create React App and Vite both support this with minimal config.
+
+If you're using **Vite** (recommended), install the plugin:
+
+```bash
+npm install vite-plugin-pwa -D
+```
+
+Then register it in your `vite.config.js`. The `registerType: "autoUpdate"` line means new versions of your app install themselves quietly in the background, so returning users always get fresh code without a manual refresh:
+
+```js
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+import { VitePWA } from "vite-plugin-pwa";
+
+export default defineConfig({
+  plugins: [
+    react(),
+    VitePWA({
+      registerType: "autoUpdate",
+      includeAssets: ["favicon.ico", "robots.txt", "icons/*.png"],
+      manifest: {
+        name: "My Offline App",
+        short_name: "OfflineApp",
+        description: "Works even when the network doesn't",
+        theme_color: "#0f172a",
+        background_color: "#0f172a",
+        display: "standalone",
+        start_url: "/",
+        icons: [
+          { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
+          { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },
+        ],
+      },
+      workbox: {
+        // Cache the app shell so the first paint never needs the network.
+        globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
+      },
+    }),
+  ],
+});
+```
+
+That's the entire PWA setup. The plugin generates a service worker at build time, precaches your app shell, and registers it for you. Open your built app, load it once with internet, then turn off your connection and reload. The interface still appears. That is the app shell being served from cache instead of the network.
+
+<Callout type="warning" title="Service workers need HTTPS">
+Service workers only run on `https://` or `http://localhost`. They will silently do nothing on an insecure origin. When you deploy, make sure your host serves over HTTPS — Vercel, Netlify, and Render all do this for free.
+</Callout>
+
+## Step 2: Cache your API responses
+
+The app shell loading offline is a great start, but a real app needs its *data* offline too. This is where **React Query** earns its keep. It caches every successful response in memory and can persist that cache to storage, so a returning user sees their last-known data instantly while a fresh copy loads in the background.
+
+Install the packages:
+
+```bash
+npm install @tanstack/react-query @tanstack/react-query-persist-client @tanstack/query-sync-storage-persister
+```
+
+Configure the client to persist its cache to `localStorage`. The key settings are `staleTime` (how long cached data is trusted before a background refetch) and `gcTime` (how long unused data survives in the cache). We set `gcTime` to 24 hours so data outlives the browser session:
+
+```jsx
+import { QueryClient } from "@tanstack/react-query";
+import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
+import { createSyncStoragePersister } from "@tanstack/query-sync-storage-persister";
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60 * 5, // 5 minutes: trust cached data this long
+      gcTime: 1000 * 60 * 60 * 24, // 24 hours: keep it around for offline
+      retry: 2,
+      refetchOnReconnect: true, // re-sync the moment the network returns
+    },
+  },
+});
+
+const persister = createSyncStoragePersister({
+  storage: window.localStorage,
+});
+
+export default function App() {
+  return (
+    <PersistQueryClientProvider
+      client={queryClient}
+      persistOptions={{ persister }}
+    >
+      <TaskList />
+    </PersistQueryClientProvider>
+  );
+}
+```
+
+Now your data survives a full page reload with no internet. React Query rehydrates the cache from `localStorage` on startup, hands it to your components immediately, and only hits the network when the connection allows.
+
+A component that reads this cache looks completely ordinary — you don't write any offline logic here, React Query handles it:
+
+```jsx
+import { useQuery } from "@tanstack/react-query";
+
+function TaskList() {
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["tasks"],
+    queryFn: () => fetch("/api/tasks").then((r) => r.json()),
+  });
+
+  if (isLoading) return <p>Loading your tasks…</p>;
+  if (isError) return <p>Showing your last saved tasks.</p>;
+
+  return (
+    <ul>
+      {data.map((task) => (
+        <li key={task.id}>{task.title}</li>
+      ))}
+    </ul>
+  );
+}
+```
+
+On a slow connection the user sees their cached tasks the instant the app opens, and the list quietly updates if a newer version arrives. No spinner, no blank screen.
+
+## Step 3: Detect the network and tell the user
+
+Users on unreliable connections deserve honesty. A small, unobtrusive banner that says "You're offline — showing saved data" builds trust. The browser exposes the connection state through the `navigator.onLine` property and the `online` / `offline` events.
+
+Wrap that in a reusable hook:
+
+```jsx
+import { useSyncExternalStore } from "react";
+
+function subscribe(callback) {
+  window.addEventListener("online", callback);
+  window.addEventListener("offline", callback);
+  return () => {
+    window.removeEventListener("online", callback);
+    window.removeEventListener("offline", callback);
+  };
+}
+
+export function useOnlineStatus() {
+  return useSyncExternalStore(
+    subscribe,
+    () => navigator.onLine, // client value
+    () => true // server value: assume online during SSR
+  );
+}
+```
+
+`useSyncExternalStore` is the React 18 hook built exactly for subscribing to browser APIs like this — it avoids the tearing bugs you'd get from a naive `useState` + `useEffect` version. Use it in any component:
+
+```jsx
+function OfflineBanner() {
+  const isOnline = useOnlineStatus();
+  if (isOnline) return null;
+
+  return (
+    <div role="status" className="offline-banner">
+      You're offline. Showing saved data — changes will sync when you reconnect.
+    </div>
+  );
+}
+```
+
+<Callout type="tip" title="navigator.onLine lies sometimes">
+`navigator.onLine` only tells you whether the device has a network interface, not whether the internet actually works. A phone connected to WiFi with no upstream signal reports "online." For critical flows, confirm with a real request to a lightweight health-check endpoint rather than trusting the flag alone.
+</Callout>
+
+## Step 4: Queue writes for later with background sync
+
+Reading offline is solved. Writing is the harder half. When a user creates a task with no connection, you can't just drop it. You save it locally, mark it as pending, and replay it when the network returns.
+
+For structured, larger data, `localStorage` is too limited — it's synchronous, string-only, and capped at around 5MB. **IndexedDB** is the right tool. The [`idb`](https://github.com/jakearchibald/idb) library gives it a clean promise-based API:
+
+```bash
+npm install idb
+```
+
+Set up a tiny queue of pending writes:
+
+```js
+import { openDB } from "idb";
+
+const dbPromise = openDB("offline-app", 1, {
+  upgrade(db) {
+    db.createObjectStore("pending-tasks", {
+      keyPath: "localId",
+      autoIncrement: true,
+    });
+  },
+});
+
+export async function queueTask(task) {
+  const db = await dbPromise;
+  await db.add("pending-tasks", { ...task, queuedAt: Date.now() });
+}
+
+export async function getQueuedTasks() {
+  const db = await dbPromise;
+  return db.getAll("pending-tasks");
+}
+
+export async function clearQueuedTask(localId) {
+  const db = await dbPromise;
+  await db.delete("pending-tasks", localId);
+}
+```
+
+Now when the user submits a task, try the network first. If it fails, queue it locally and show it in the UI immediately with a "pending" marker so the app never feels broken:
+
+```jsx
+async function createTask(task) {
+  try {
+    const res = await fetch("/api/tasks", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(task),
+    });
+    if (!res.ok) throw new Error("Server rejected the request");
+    return res.json();
+  } catch (err) {
+    // Network failed — save locally and replay later.
+    await queueTask(task);
+    return { ...task, pending: true };
+  }
+}
+```
+
+Finally, drain the queue when the connection comes back. Listen for the `online` event and replay each pending write in order:
+
+```js
+async function syncPendingTasks() {
+  const queued = await getQueuedTasks();
+  for (const task of queued) {
+    try {
+      const res = await fetch("/api/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(task),
+      });
+      if (res.ok) await clearQueuedTask(task.localId);
+    } catch {
+      // Still offline — stop and try again on the next reconnect.
+      break;
+    }
+  }
+}
+
+window.addEventListener("online", syncPendingTasks);
+```
+
+This is the same pattern messaging apps use: your message shows a clock icon while pending, then a tick once it's delivered. The user is never blocked by the network.
+
+<Callout type="warning" title="Watch out for duplicate writes">
+If a request actually reached the server but the response was lost on a flaky connection, replaying it creates a duplicate. Protect against this with an idempotency key — a unique id the client generates and the server uses to reject repeats. Generate it once with `crypto.randomUUID()` and send it with every attempt of the same write.
+</Callout>
+
+## Step 5: Shrink everything for expensive data
+
+Offline capability is half the battle. The other half is respecting how much a megabyte costs your users. A few habits make a real difference:
+
+- **Compress and resize images.** Serve WebP or AVIF, size images to their display dimensions, and lazy-load anything below the fold with `loading="lazy"`. A 2MB hero image is a data-bundle crime.
+- **Code-split by route.** Use `React.lazy` and dynamic `import()` so users only download the JavaScript for the page they're on, not the entire app up front.
+- **Cache fonts aggressively.** Self-host `woff2` fonts and let the service worker cache them forever. Web fonts are surprisingly heavy.
+- **Prefer JSON over chatty APIs.** Fewer, fatter requests beat many small ones on high-latency networks. Fetch what a screen needs in one call.
+
+Here's route-based code splitting, which is the single highest-impact change for most apps:
+
+```jsx
+import { lazy, Suspense } from "react";
+import { Routes, Route } from "react-router-dom";
+
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const Settings = lazy(() => import("./pages/Settings"));
+
+function App() {
+  return (
+    <Suspense fallback={<p>Loading…</p>}>
+      <Routes>
+        <Route path="/" element={<Dashboard />} />
+        <Route path="/settings" element={<Settings />} />
+      </Routes>
+    </Suspense>
+  );
+}
+```
+
+## Testing your offline experience
+
+You can't trust code you haven't tested under real conditions. Chrome DevTools makes this easy:
+
+1. Open **DevTools → Network** and switch the throttling dropdown to **Offline**. Reload and confirm your app still renders.
+2. Try **Slow 3G** to feel what most of your users feel. Anything that frustrates you here will infuriate them.
+3. Open the **Application** tab to inspect your service worker, Cache Storage, and IndexedDB. Confirm your data is actually being stored.
+4. Test the full write-while-offline flow: go offline, create a task, go back online, and verify it syncs exactly once.
+
+## Where to go next
+
+You now have the complete toolkit: a PWA shell that loads without the network, persisted API data through React Query, honest offline messaging, a background sync queue in IndexedDB, and a payload trimmed for expensive data. Together these turn a fragile online-first app into one that feels solid on the worst connection.
+
+The natural next step is putting real data behind it. If you haven't built the API side yet, start with [How I Built a Full-Stack App with React and Spring Boot](/blog/react-spring-boot-tutorial), then read [Deploying Spring Boot on Render.com](/blog/deploy-spring-boot-render) to get it live on HTTPS so your service worker can do its job.
+
+Build for the bus with no signal, the drained data bundle, and the NEPA blackout. If your app works there, it works everywhere.

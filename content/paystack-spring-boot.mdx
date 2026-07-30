@@ -1,0 +1,337 @@
+---
+title: "Integrating Paystack Payments in a Spring Boot Application"
+description: "Accept payments in Naira with Nigeria's leading payment gateway."
+date: 2026-07-17
+tags: ["Spring Boot", "Payments", "Nigeria"]
+image: "/images/covers/paystack-spring-boot.svg"
+published: true
+---
+
+At some point every serious app needs to take money. In Nigeria and across much of West Africa, [Paystack](https://paystack.com) is the payment gateway most developers reach for — it's reliable, the documentation is excellent, and it handles cards, bank transfers, and USSD out of the box. In this guide we integrate Paystack into a Spring Boot application the right way: server-side, secure, and verified. By the end you'll be able to charge a customer in Naira and confirm the payment actually succeeded before you deliver anything.
+
+<Callout type="warning" title="Security first">
+Payment code is the one place where a shortcut can cost real money. The single most important rule: never trust the browser. Always verify a transaction on your server before granting value. We'll follow that rule strictly throughout this guide.
+</Callout>
+
+## How Paystack payments actually work
+
+Before writing code, understand the flow. A Paystack payment has three phases, and your server is involved at the start and the end — never blindly in the middle.
+
+First, **initialize**. Your server tells Paystack "I want to charge this customer this amount." Paystack replies with a unique reference and an authorization URL. Second, **pay**. You send the customer to that authorization URL (or open Paystack's popup on the front end), where they enter their card or choose bank transfer. Paystack handles all the sensitive card data — it never touches your server, which keeps you out of PCI compliance scope. Third, **verify**. After payment, Paystack redirects the customer back and also gives you the reference. Your server calls Paystack's verify endpoint with that reference to confirm the payment succeeded, the amount was correct, and only then do you fulfill the order.
+
+The golden rule lives in phase three: **the front end can be tampered with, so the server must independently verify every transaction.** A malicious user can fake a "success" callback in the browser, but they cannot fake Paystack's verify response, because that call is authenticated with your secret key.
+
+## Getting your API keys
+
+Create a free Paystack account and open the dashboard. Under **Settings → API Keys & Webhooks** you'll find two keys for test mode:
+
+- **Public key** (`pk_test_...`) — safe to expose on the front end. It only initializes payments.
+- **Secret key** (`sk_test_...`) — must stay on your server, always. It can move money and read transaction data.
+
+Paystack starts you in test mode, where you can use test card numbers to simulate payments without real money changing hands. Switch to live keys only when you're ready to launch.
+
+<Callout type="danger" title="Never commit your secret key">
+Your secret key belongs in an environment variable, never in source code and never in your Git history. If it leaks, anyone can query your transactions. If you ever expose it by accident, roll it immediately from the dashboard.
+</Callout>
+
+## Configuring Spring Boot
+
+Add the secret key to your environment rather than hard-coding it. In `application.properties`:
+
+```ini
+paystack.secret-key=${PAYSTACK_SECRET_KEY}
+paystack.base-url=https://api.paystack.co
+```
+
+Then set the actual value as an environment variable when you run the app locally:
+
+```bash
+export PAYSTACK_SECRET_KEY=sk_test_your_key_here
+./mvnw spring-boot:run
+```
+
+Bind these properties to a type-safe configuration class so you never sprinkle raw strings around your codebase:
+
+```java
+package com.stackfromzero.payments;
+
+import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.context.annotation.Configuration;
+
+@Configuration
+@ConfigurationProperties(prefix = "paystack")
+public class PaystackConfig {
+
+    private String secretKey;
+    private String baseUrl;
+
+    public String getSecretKey() {
+        return secretKey;
+    }
+
+    public void setSecretKey(String secretKey) {
+        this.secretKey = secretKey;
+    }
+
+    public String getBaseUrl() {
+        return baseUrl;
+    }
+
+    public void setBaseUrl(String baseUrl) {
+        this.baseUrl = baseUrl;
+    }
+}
+```
+
+## Modeling the request and response
+
+Paystack's API speaks JSON, so we create small Java records to represent the data we send and receive. Records are perfect here — immutable, concise, and self-documenting.
+
+```java
+package com.stackfromzero.payments;
+
+// What our front end sends us to start a payment
+public record InitializeRequest(String email, long amount) {}
+
+// What we send back after initializing
+public record InitializeResponse(String authorizationUrl, String reference) {}
+```
+
+<Callout type="info" title="Amounts are in kobo">
+Paystack expects amounts in the smallest currency unit. For Naira that's kobo, so ₦5,000 is `500000`. Always store and transmit money as integers in the smallest unit — never as a floating-point number of Naira. Floating-point rounding errors and money do not mix.
+</Callout>
+
+## Building the payment service
+
+We'll use Spring's `RestClient` (introduced in Spring 6.1) to call Paystack. It's the modern, fluent replacement for `RestTemplate`. The service does two things: initialize a transaction and verify one.
+
+```java
+package com.stackfromzero.payments;
+
+import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestClient;
+import java.util.Map;
+
+@Service
+public class PaystackService {
+
+    private final RestClient restClient;
+
+    public PaystackService(PaystackConfig config) {
+        this.restClient = RestClient.builder()
+                .baseUrl(config.getBaseUrl())
+                .defaultHeader("Authorization", "Bearer " + config.getSecretKey())
+                .defaultHeader("Content-Type", "application/json")
+                .build();
+    }
+
+    @SuppressWarnings("unchecked")
+    public InitializeResponse initialize(InitializeRequest request) {
+        Map<String, Object> body = Map.of(
+                "email", request.email(),
+                "amount", request.amount()
+        );
+
+        Map<String, Object> response = restClient.post()
+                .uri("/transaction/initialize")
+                .body(body)
+                .retrieve()
+                .body(Map.class);
+
+        Map<String, Object> data = (Map<String, Object>) response.get("data");
+        return new InitializeResponse(
+                (String) data.get("authorization_url"),
+                (String) data.get("reference")
+        );
+    }
+
+    @SuppressWarnings("unchecked")
+    public boolean verify(String reference) {
+        Map<String, Object> response = restClient.get()
+                .uri("/transaction/verify/{reference}", reference)
+                .retrieve()
+                .body(Map.class);
+
+        Map<String, Object> data = (Map<String, Object>) response.get("data");
+        // Paystack returns status "success" only for completed payments
+        return data != null && "success".equals(data.get("status"));
+    }
+}
+```
+
+The `Authorization: Bearer <secret key>` header is what authenticates every call as coming from you. Because it's set once as a default header, we never risk forgetting it on an individual request.
+
+## Exposing the endpoints
+
+Now wire the service to a REST controller the front end can call.
+
+```java
+package com.stackfromzero.payments;
+
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/payments")
+public class PaymentController {
+
+    private final PaystackService paystackService;
+
+    public PaymentController(PaystackService paystackService) {
+        this.paystackService = paystackService;
+    }
+
+    @PostMapping("/initialize")
+    public InitializeResponse initialize(@RequestBody InitializeRequest request) {
+        return paystackService.initialize(request);
+    }
+
+    @GetMapping("/verify/{reference}")
+    public Map<String, Boolean> verify(@PathVariable String reference) {
+        boolean success = paystackService.verify(reference);
+        return Map.of("verified", success);
+    }
+}
+```
+
+## Calling it from React
+
+On the front end, you start payment by calling your own server, then redirect the user to the authorization URL Paystack returned:
+
+```jsx
+async function startPayment(email, amountInNaira) {
+  const res = await fetch("/api/payments/initialize", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, amount: amountInNaira * 100 }),
+  });
+  const { authorizationUrl } = await res.json();
+  // Send the user to Paystack's secure checkout
+  window.location.href = authorizationUrl;
+}
+```
+
+Notice we multiply by 100 to convert Naira to kobo right at the boundary. After the customer pays, Paystack redirects them back to a callback URL you configure, with the `reference` in the query string. Your front end reads it and asks your server to verify:
+
+```jsx
+async function confirmPayment(reference) {
+  const res = await fetch(`/api/payments/verify/${reference}`);
+  const { verified } = await res.json();
+  if (verified) {
+    // Safe to deliver the product now
+    showSuccess();
+  } else {
+    showFailure();
+  }
+}
+```
+
+## Verifying with webhooks for reliability
+
+Redirect-based verification has a weakness: what if the customer closes their browser right after paying but before the redirect fires? The payment succeeded, but your app never found out. Webhooks solve this. Paystack sends a server-to-server `POST` to a URL you configure whenever a transaction completes, independent of the customer's browser.
+
+The catch is that anyone could `POST` fake data to your webhook URL, so you must verify the request genuinely came from Paystack. Paystack signs every webhook with your secret key using HMAC SHA-512, and puts the signature in the `x-paystack-signature` header. You recompute the signature and compare.
+
+```java
+package com.stackfromzero.payments;
+
+import org.springframework.web.bind.annotation.*;
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
+import java.nio.charset.StandardCharsets;
+
+@RestController
+@RequestMapping("/api/payments")
+public class WebhookController {
+
+    private final PaystackConfig config;
+
+    public WebhookController(PaystackConfig config) {
+        this.config = config;
+    }
+
+    @PostMapping("/webhook")
+    public String handleWebhook(
+            @RequestBody String payload,
+            @RequestHeader("x-paystack-signature") String signature) {
+
+        String expected = hmacSha512(payload, config.getSecretKey());
+        if (!expected.equals(signature)) {
+            // Not from Paystack — ignore it
+            return "invalid";
+        }
+
+        // Signature valid: safe to process the event (e.g. mark order paid)
+        return "ok";
+    }
+
+    private String hmacSha512(String data, String key) {
+        try {
+            Mac mac = Mac.getInstance("HmacSHA512");
+            mac.init(new SecretKeySpec(key.getBytes(StandardCharsets.UTF_8), "HmacSHA512"));
+            byte[] hash = mac.doFinal(data.getBytes(StandardCharsets.UTF_8));
+            StringBuilder hex = new StringBuilder();
+            for (byte b : hash) {
+                hex.append(String.format("%02x", b));
+            }
+            return hex.toString();
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to compute signature", e);
+        }
+    }
+}
+```
+
+<Callout type="tip" title="Use both">
+The best setup uses both mechanisms: the redirect gives the customer instant feedback, and the webhook guarantees your server eventually learns about every payment even if the browser never comes back. Treat the webhook as the source of truth.
+</Callout>
+
+## Testing with Paystack test cards
+
+The whole point of test mode is that you can exercise the full flow without spending a Naira. Paystack publishes test card numbers that simulate different outcomes. The most useful one for the happy path is:
+
+```plaintext
+Card number: 4084 0840 8408 4081
+Expiry: any future date (e.g. 12/30)
+CVV: 408
+PIN: 0000
+OTP: 123456
+```
+
+Run through your integration end to end with this card: initialize a payment from React, get redirected to Paystack's checkout, pay with the test card, land back on your callback, and watch your server verify the reference and return `verified: true`. Paystack also provides cards that simulate a declined payment or an insufficient-funds error, so you can confirm your failure handling works too. Test both paths — a payment flow that only handles success will eventually strand a real customer who was declined.
+
+<Callout type="info" title="Watch it in the dashboard">
+Every test transaction shows up under the Transactions tab of your Paystack dashboard, complete with its status and reference. It's the fastest way to confirm your `initialize` call is actually reaching Paystack and to cross-check what your `verify` call should return.
+</Callout>
+
+## Verifying the amount, not just the status
+
+A subtle but critical detail: checking that `status` equals `"success"` is not enough on its own. A determined attacker could initialize a cheap transaction and then try to associate its successful reference with an expensive order. That's why, when you verify, you should also confirm the amount Paystack reports matches what the order actually costs.
+
+```java
+Map<String, Object> data = (Map<String, Object>) response.get("data");
+boolean statusOk = "success".equals(data.get("status"));
+long paidAmount = ((Number) data.get("amount")).longValue();
+boolean amountOk = paidAmount == expectedAmountInKobo;
+
+return statusOk && amountOk;
+```
+
+Only when both the status and the amount check out should you deliver value. This single extra comparison closes off a whole class of tampering attacks, and it costs you two lines of code. Payment security is mostly made of small, deliberate checks like this one — none of them clever, all of them necessary.
+
+## Security best practices checklist
+
+Payments deserve a deliberate security review. Before you go live, confirm every one of these:
+
+- **Secret key in environment variables only.** Never in code, never in Git, never in the front end.
+- **Always verify server-side.** A browser saying "payment succeeded" means nothing until your server confirms it with Paystack.
+- **Check the amount on verify.** Confirm the verified amount matches what the order should cost, so a user can't pay ₦100 for a ₦10,000 item by tampering with the request.
+- **Validate webhook signatures.** Reject any webhook whose HMAC signature doesn't match.
+- **Make verification idempotent.** A webhook can arrive more than once; make sure processing the same reference twice doesn't deliver the product twice or credit an account twice.
+- **Use HTTPS everywhere.** Both your API and your webhook endpoint must be served over HTTPS in production.
+- **Log transactions, not secrets.** Keep an audit trail of references and outcomes, but never log full card data or your secret key.
+
+## Where to go next
+
+You now have a secure, verified Paystack integration: initialize on the server, pay on Paystack's hosted checkout, and confirm through both redirect verification and signed webhooks. That's the same architecture real Nigerian startups run in production.
+
+From here, persist your transactions in a database so you have a permanent record, add email receipts, and build an admin view to reconcile payments. And when you're ready to put this online, my guide on [deploying Spring Boot on Render](/blog/deploy-spring-boot-render) will get your API — webhook endpoint and all — live for free.
