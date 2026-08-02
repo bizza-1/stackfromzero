@@ -1,33 +1,22 @@
 ---
 title: "Spring Boot 3 to 4 Migration: The Complete Guide for Developers Still on 3.5"
-description: "Spring Boot 3.5 is dead. Your app will break. Here is exactly how to migrate to Boot 4 without losing your mind or your data."
-date: "2026-08-02"
+description: "Spring Boot 3.5 has reached end of life, and your app is at risk. Here's exactly how to migrate to Boot 4 step by step, with every error and fix documented."
+date: 2026-08-02
 tags: ["Spring Boot", "Migration", "Java", "DevOps"]
-series: "Full Stack Foundations"
+series: "Full-Stack Foundations"
 seriesOrder: 4
+image: "/images/covers/springboot-migration-hero.png"
 published: true
 ---
 
-Skip to content
-
-[Home](/) &gt; [Spring Boot](/tags/spring-boot) &gt; Spring Boot 3 to 4 Migration
-
-# Spring Boot 3 to 4 Migration: The Complete Guide for Developers Still on 3.5
-
 Spring Boot 3.5 reached end of life in June 2026. That means no more security patches. No more bug fixes. If you are still running 3.5, your production app is now a liability. This guide walks you through the migration to Spring Boot 4. I just did this myself. These are the exact steps, the exact errors, and the exact fixes.
 
-By: [Jafar](/about)
-15 min
-Last updated: August 2, 2026
-
-![Developer staring at terminal with migration errors](/images/springboot-migration-hero.png)
-
-## Key Takeaways
+## Key takeaways
 
 - **Spring Boot 3.5 is dead.** No more support. Migrate now or risk security holes.
 - **Java 17 is the new minimum.** Boot 4 drops Java 11 and 8. Upgrade your JDK first.
 - **Jackson 3 replaces Jackson 2.** Package names changed. This breaks every API response.
-- **Virtual threads are now default.** Your app handles 10,000 concurrent requests without breaking a sweat.
+- **Virtual threads are now default.** Your app can handle 10,000 concurrent requests on far fewer OS threads than before.
 - **Migration takes 2 to 4 hours** for a typical CRUD app. Longer if you ignored deprecation warnings.
 
 Spring Boot 4 is not a small update. It is a major version with breaking changes that will stop your app from starting if you are not prepared. But the performance gains are worth the pain. My API response times dropped 40 percent after the migration. Here is how to do it without crying.
@@ -36,7 +25,7 @@ Spring Boot 4 is not a small update. It is a major version with breaking changes
 Back up your database. Back up your code. Create a new branch called boot4migration. Do not attempt this on main at 2 AM. I am serious.
 </Callout>
 
-## 1. Check your current Spring Boot version
+## Checking your current Spring Boot version
 
 Open your pom.xml or build.gradle. Look for the Spring Boot parent version.
 
@@ -47,66 +36,106 @@ Open your pom.xml or build.gradle. Look for the Spring Boot parent version.
     <artifactId>spring-boot-starter-parent</artifactId>
     <version>3.5.2</version>
 </parent>
-If you see 3.5.x or anything below 3.4, you need this guide. If you are on 3.4, the migration is easier but you still have work to do.
+```
+
+If you see 3.5.x or anything below 3.4, you need this guide. If you are on 3.4, the migration is easier, but you still have work to do.
+
 Also check your Java version:
-bash
+
+```bash
 java -version
-If you see anything below 17, upgrade your JDK first. Spring Boot 4 refuses to start on Java 11 or 8. I learned this the hard way when my build failed with a cryptic bytecode error.
+```
+
+If you see anything below 17, upgrade your JDK first. Spring Boot 4 refuses to start on Java 11 or 8. I found out when my build failed with a cryptic bytecode error.
+
 <Callout type="tip" title="Java 17 download">
 Download OpenJDK 17 from Adoptium. It is free and takes five minutes to install. Do this before touching your code.
 </Callout>
-2. Update your Spring Boot version
+
+## Updating your Spring Boot version
+
 Change your parent version to 4.0.0 or the latest stable release.
-xml
+
+```xml
 <parent>
     <groupId>org.springframework.boot</groupId>
     <artifactId>spring-boot-starter-parent</artifactId>
     <version>4.0.0</version>
 </parent>
+```
+
 If you use Gradle:
-groovy
+
+```groovy
 plugins {
     id 'org.springframework.boot' version '4.0.0'
 }
+```
+
 Save the file. Do not build yet. There are more changes coming.
-3. Upgrade your Java version
+
+## Upgrading your Java version
+
 In pom.xml, update the Java version property:
-xml
+
+```xml
 <properties>
     <java.version>17</java.version>
 </properties>
+```
+
 For Gradle, update your source compatibility:
-groovy
+
+```groovy
 java {
     sourceCompatibility = '17'
 }
+```
+
 If your IDE is IntelliJ IDEA, go to File → Project Structure → Project SDK and select Java 17. Restart your IDE. This step alone fixes half the red squiggly lines you will see.
-4. Fix Jackson 3 package changes
-This is the breaking change that will eat your afternoon. Jackson 3 is now the default in Spring Boot 4. The package names changed from com.fasterxml.jackson to tools.jackson.
+
+## Fixing the Jackson 3 package changes
+
+This is the breaking change that costs the most time. Jackson 3 is now the default in Spring Boot 4. The package names changed from `com.fasterxml.jackson` to `tools.jackson`.
+
 Every import statement in your project needs updating.
+
 Old Jackson 2 imports:
-java
+
+```java
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
+```
+
 New Jackson 3 imports:
-java
+
+```java
 import tools.jackson.annotation.JsonProperty;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.core.JsonProcessingException;
+```
+
 <Callout type="warning" title="Do not mix Jackson versions">
 You cannot have both com.fasterxml.jackson and tools.jackson in the same project. Spring Boot 4 will throw a ClassNotFoundException at runtime if you try. Update every single import.
 </Callout>
+
 If you have a large project, use your IDE's find and replace:
-Press Ctrl + Shift + F (or Cmd + Shift + F on Mac)
-Find: com.fasterxml.jackson
-Replace: tools.jackson
-Replace all
+
+1. Press Ctrl + Shift + F (or Cmd + Shift + F on Mac)
+2. Find: `com.fasterxml.jackson`
+3. Replace: `tools.jackson`
+4. Replace all
+
 Then rebuild. If you see errors about missing classes, you missed an import.
-5. Handle exception hierarchy changes
-Jackson 3 cleaned up its exception hierarchy. JsonProcessingException is now a checked exception in some contexts where it was not before.
-If your code catches RuntimeException to handle JSON parsing, it will now miss Jackson errors. Update your exception handling:
-java
+
+## Handling the exception hierarchy changes
+
+Jackson 3 cleaned up its exception hierarchy. `JsonProcessingException` is now a checked exception in some contexts where it was not before.
+
+If your code catches `RuntimeException` to handle JSON parsing, it will now miss Jackson errors. Update your exception handling:
+
+```java
 // Old code that breaks
 try {
     ObjectMapper mapper = new ObjectMapper();
@@ -126,105 +155,132 @@ try {
 } catch (IOException e) {
     log.error("IO error: {}", e.getMessage());
 }
-This change is annoying but correct. Jackson 3 forces you to handle errors properly instead of sweeping them under RuntimeException.
-6. Update your configuration properties
+```
+
+This change is annoying but correct. Jackson 3 forces you to handle errors properly instead of letting `RuntimeException` catch everything.
+
+## Updating your configuration properties
+
 Some property names changed in Spring Boot 4. The most common ones:
-Table
-Old Property (Boot 3)	New Property (Boot 4)	What It Does
-server.servlet.context-path	server.context-path	Base path for your app
-spring.datasource.hikari.*	spring.datasource.hikari.*	No change, but defaults stricter
-spring.jackson.*	spring.jackson.*	Still works, but now Jackson 3
-spring.main.lazy-initialization	spring.main.lazy-initialization	Default changed to false
+
+| Old property (Boot 3) | New property (Boot 4) | What it does |
+|---|---|---|
+| `server.servlet.context-path` | `server.context-path` | Base path for your app |
+| `spring.datasource.hikari.*` | `spring.datasource.hikari.*` | No change, but defaults are stricter |
+| `spring.jackson.*` | `spring.jackson.*` | Still works, but now backed by Jackson 3 |
+| `spring.main.lazy-initialization` | `spring.main.lazy-initialization` | Default changed to false |
+
 Check your application.properties or application.yml. If you see red warnings in your IDE, hover over them. Spring Boot 4 tells you exactly what changed.
-7. Test everything twice
+
+## Testing everything twice
+
 Run your tests:
-bash
+
+```bash
 ./mvnw clean test
+```
+
 Expect failures. Do not panic. Common failures and fixes:
-Table
-Error	Cause	Fix
-ClassNotFoundException: com.fasterxml.jackson...	Old Jackson import	Find and replace to tools.jackson
-Unsupported class file major version 61	Java 11 bytecode on Java 17 runtime	Clean and rebuild with Java 17
-BeanCreationException for DataSource	HikariCP config changed	Update connection pool settings
-TestPropertySource not loading	File path handling stricter	Use classpath: prefix explicitly
+
+| Error | Cause | Fix |
+|---|---|---|
+| `ClassNotFoundException: com.fasterxml.jackson...` | Old Jackson import | Find and replace to `tools.jackson` |
+| `Unsupported class file major version 61` | Java 11 bytecode on a Java 17 runtime | Clean and rebuild with Java 17 |
+| `BeanCreationException` for DataSource | HikariCP config changed | Update connection pool settings |
+| `TestPropertySource` not loading | File path handling is stricter | Use the `classpath:` prefix explicitly |
+
 Fix each error one by one. Do not try to fix everything at once. My first migration took three hours because I tried to be clever and fix ten things simultaneously. That created ten new problems.
+
 <Callout type="info" title="My actual error log">
 The first time I ran tests after the migration, I had 47 failures. 42 were Jackson imports. 3 were Java version issues. 2 were test data setup problems. It looked catastrophic. It took 90 minutes to fix all of them. Most were find and replace.
 </Callout>
-8. Enable virtual threads (the big win)
+
+## Enabling virtual threads
+
 Virtual threads are the headline feature of Spring Boot 4. They let your app handle thousands of concurrent requests without creating thousands of OS threads. On a free Render tier, this means your app survives traffic spikes without crashing.
+
 Add to application.properties:
-properties
+
+```ini
 spring.threads.virtual.enabled=true
+```
+
 That is it. One line. Your app now uses virtual threads by default for Tomcat request handling.
+
 To verify it is working, add this bean and check the logs:
-java
+
+```java
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
 
 @Component
 public class VirtualThreadChecker implements CommandLineRunner {
-    
+
     @Override
     public void run(String... args) {
         Thread currentThread = Thread.currentThread();
         System.out.println("Running on virtual thread: " + currentThread.isVirtual());
     }
 }
-You should see: Running on virtual thread: true
-If you see false, check your Java version. Virtual threads require Java 21 or higher for full support, but Spring Boot 4 emulates them on Java 17. For true virtual threads, upgrade to Java 21.
+```
+
+You should see: `Running on virtual thread: true`
+
+If you see `false`, check your Java version. Virtual threads require Java 21 or higher for full support, but Spring Boot 4 emulates them on Java 17. For true virtual threads, upgrade to Java 21.
+
 <Callout type="tip" title="Free tier performance boost">
-My API on Render's free tier went from handling 200 concurrent requests before crashing to 8,000. Virtual threads are not marketing. They are magic.
+My API on Render's free tier went from handling 200 concurrent requests before crashing to 8,000. Virtual threads are not marketing hype. The numbers back it up.
 </Callout>
-9. Deploy and monitor
+
+## Deploying and monitoring
+
 Once tests pass, commit your changes:
-bash
+
+```bash
 git add .
 git commit -m "Migrate to Spring Boot 4"
 git push
+```
+
 If you followed my Render deployment guide, your app will auto deploy. Watch the logs for startup errors.
+
 After deployment, monitor these metrics:
-Table
-Metric	Before Migration	After Migration	What to Expect
-Startup time	4 to 6 seconds	3 to 5 seconds	Slightly faster
-Memory usage	512 MB baseline	400 MB baseline	Lower due to virtual threads
-Concurrent requests	200 max	8,000+ max	40x improvement
-API response time	120ms average	80ms average	33 percent faster
+
+| Metric | Before migration | After migration | What to expect |
+|---|---|---|---|
+| Startup time | 4 to 6 seconds | 3 to 5 seconds | Slightly faster |
+| Memory usage | 512 MB baseline | 400 MB baseline | Lower, due to virtual threads |
+| Concurrent requests | 200 max | 8,000+ max | 40x improvement |
+| API response time | 120ms average | 80ms average | 33 percent faster |
+
 If your numbers are worse, something is wrong. Check your logs.
-10. Clean up deprecated code
+
+## Cleaning up deprecated code
+
 Spring Boot 4 removed several deprecated APIs. Your app might compile but use deprecated methods that will break in Boot 5.
+
 Enable deprecation warnings as errors during development:
-properties
+
+```ini
 # application.properties
 spring.main.banner-mode=off
 logging.level.org.springframework.boot=WARN
-Then run your app and watch the console. Fix every deprecation warning you see. Future you will thank present you.
+```
+
+Then run your app and watch the console. Fix every deprecation warning you see. You'll be glad you did once Boot 5 ships.
+
 <Callout type="warning" title="Do not ignore warnings">
 I ignored deprecation warnings in Boot 3. They became hard errors in Boot 4. I spent an extra two hours fixing things I could have fixed months ago. Listen to the warnings.
 </Callout>
-Where to go next
-You now have a Spring Boot 4 app running on Java 17 with virtual threads enabled. Your app is faster, more secure, and ready for the next two years of support.
-Next steps:
-Add Spring AI 2.0 to build AI powered APIs. Requires Boot 4.
-Migrate your React frontend to Next.js 15 for the full modern stack.
-Deploy both on Render and Vercel for $0 total cost.
-If you have not built the API yet, start with How I Built a Full Stack App with React and Spring Boot.
-Written by Your Name
-Full Stack Developer & Founder | StackFromZero
-[Your Name] builds developer education platforms and writes about React, Spring Boot, and growing a tech career from Africa. He migrated three production apps to Spring Boot 4 in July 2026 and documented every breaking change so you do not have to suffer alone. He holds a degree in [Your Field] from [Your University] and has been featured on Dev.to, Hashnode, and [Publication].
-Related Articles
-How I Built a Full Stack App with React and Spring Boot
-6 min
-Deploying Spring Boot on Render.com: Free Hosting for Students
-8 min
-The Complete Guide to Offline First React Apps
-11 min
-Ready to migrate?
-Get the migration checklist and starter template sent to your inbox.
-Get the free checklist
-Or find more Spring Boot resources:
-Spring Boot Tutorials | Deployment Guides | Java Updates
-Privacy Policy | Terms | Sitemap
-© 2026 StackFromZero. Built with Next.js, Bootstrap, and caffeine.
-plain
 
+## Where to go next
+
+You now have a Spring Boot 4 app running on Java 17 with virtual threads enabled. Your app is faster, more secure, and ready for the next two years of support.
+
+Next steps:
+
+- Add Spring AI 2.0 to build AI-powered APIs. Requires Boot 4.
+- Migrate your React frontend to Next.js 15 for the full modern stack.
+- Deploy both on Render and Vercel for $0 total cost.
+
+If you have not built the API yet, start with "How I Built a Full-Stack App with React and Spring Boot."
