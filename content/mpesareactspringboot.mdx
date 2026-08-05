@@ -5,7 +5,7 @@ date: "2026-08-06"
 tags: ["M-Pesa", "Payments", "Spring Boot", "React", "Africa", "Fintech"]
 series: "Full Stack Foundations"
 seriesOrder: 6
-image: "/images/covers/mpesa-react-springboot-hero.png"
+image: "/images/covers/mpesa-react-springboot-hero.jpeg"
 published: true
 ---
 
@@ -85,8 +85,11 @@ Add this to your pom.xml for HTTP requests:
     <groupId>org.apache.httpcomponents.client5</groupId>
     <artifactId>httpclient5</artifactId>
 </dependency>
+```
 
-Create your application.properties:
+Create your `application.properties`:
+
+```properties
 # Database
 spring.datasource.url=jdbc:postgresql://localhost:5432/mpesa_payments
 spring.datasource.username=postgres
@@ -100,13 +103,17 @@ mpesa.shortcode=174379
 mpesa.passkey=bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919
 mpesa.callback-url=https://your-ngrok-url.ngrok-free.app/api/payments/callback
 mpesa.environment=sandbox
+```
 
 <Callout type="warning" title="The passkey is public">
 The passkey shown above is the official sandbox test passkey. It is the same for every developer in sandbox mode. Do not panic if you see it in tutorials. In production, Safaricom gives you a unique passkey.
 </Callout>
 
-3. The Payment Entity
+## 3. The Payment Entity
+
 Create a JPA entity to track every payment:
+
+```java
 package com.example.mpesa.model;
 
 import jakarta.persistence.*;
@@ -148,9 +155,13 @@ public class Payment {
         PENDING, PROCESSING, COMPLETED, FAILED
     }
 }
+```
 
-4. The Daraja Service
+## 4. The Daraja Service
+
 This is the core class. It handles authentication, STK Push requests, and callback processing.
+
+```java
 package com.example.mpesa.service;
 
 import com.example.mpesa.model.Payment;
@@ -335,8 +346,11 @@ public class MpesaService {
     ) {}
 }
 
-5. The REST Controller
+## 5. The REST Controller
+
 Expose endpoints for your React frontend:
+
+```java
 package com.example.mpesa.controller;
 
 import com.example.mpesa.model.Payment;
@@ -421,8 +435,11 @@ public class PaymentController {
     }
 }
 
-6. The React Frontend
+## 6. The React Frontend
+
 Create a simple payment component:
+
+```jsx
 // components/MpesaPayment.jsx
 import { useState } from 'react';
 
@@ -534,11 +551,12 @@ export function MpesaPayment() {
     </div>
   );
 }
+```
 
 <Callout type="warning" title="Never put credentials in React">
 Notice the React code only sends phone and amount. The consumer key, secret, and passkey never leave the server. If you put Daraja credentials in your frontend, someone will steal them within hours.
 </Callout>
-7. The 7 Errors You Will Definitely Hit
+## 7. The 7 Errors You Will Definitely Hit
 | Error                          | Cause                         | Fix                                                        |
 | ------------------------------ | ----------------------------- | ---------------------------------------------------------- |
 | **Invalid Access Token**       | Wrong consumer key or secret  | Copy exactly from Daraja portal. No extra spaces.          |
@@ -549,7 +567,7 @@ Notice the React code only sends phone and amount. The consumer key, secret, and
 | **Insufficient Balance**       | Test account has no money     | Use Daraja simulator or fund test number.                  |
 | **Duplicate Transaction**      | Same details within 5 minutes | Add unique timestamp or random string to accountReference. |
 
-8. Testing with ngrok
+## 8. Testing with ngrok
 Your callback URL must be publicly accessible. For local development, use ngrok:
 # Install ngrok
 npm install -g ngrok
