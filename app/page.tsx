@@ -18,7 +18,7 @@ export default function HomePage() {
           <div>
             <h2 className="fw-bold mb-1">Latest tutorials</h2>
             <p className="text-secondary-custom mb-0">
-              Hand-crafted guides to help you ship real full-stack apps.
+              Hand crafted guides to help you ship real full-stack apps.
             </p>
           </div>
           <Link href="/blog" className="btn btn-outline-primary">

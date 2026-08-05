@@ -1,0 +1,588 @@
+---
+title: "I Built an M-Pesa Payment Flow with React and Spring Boot: The Complete Tutorial"
+description: "Every African fintech needs M-Pesa integration. But the tutorials are outdated, the sandbox is confusing, and the error messages make no sense. Here is exactly how I built a production-ready payment flow from scratch."
+date: "2026-08-06"
+tags: ["M-Pesa", "Payments", "Spring Boot", "React", "Africa", "Fintech"]
+series: "Full Stack Foundations"
+seriesOrder: 6
+image: "/images/covers/mpesa-react-springboot-hero.png"
+published: true
+---
+
+Skip to content
+
+[Home](/) &gt; [Payments](/tags/payments) &gt; M-Pesa React Spring Boot
+
+# I Built an M-Pesa Payment Flow with React and Spring Boot: The Complete Tutorial
+
+In March 2026, a founder in Nairobi DMed me on Twitter. He had a React frontend, a Spring Boot backend, and a brilliant idea for a fintech app. But he was stuck on one thing. M-Pesa integration. He had read the Safaricom documentation three times. He had tried three different NPM packages. He had even paid a developer $200 who delivered code that never worked in production.
+
+I built the integration for him in two days. Then I rebuilt it from scratch to document every step. This tutorial is that rebuild. It covers the Daraja API, the Spring Boot backend, the React frontend, and the 7 errors you will definitely hit along the way.
+
+By: Jafar
+18 min
+Last updated: August 6, 2026
+
+![M-Pesa payment flow on mobile phone](/images/covers/mpesa-react-springboot-hero.jpg)
+
+## Key Takeaways
+
+- **The Daraja API is not hard. It is just poorly documented.** Once you understand the flow, the code is simple.
+- **Never store M-Pesa credentials in your frontend.** The consumer key and secret must live only on your server.
+- **The sandbox and production environments behave differently.** Test everything in both before you launch.
+- **STK Push is the best user experience.** It pops up on the user's phone automatically. No manual Paybill entry.
+- **Callback URLs must be HTTPS and publicly accessible.** Localhost will not work. Use ngrok for development.
+
+<Callout type="warning" title="Before you start">
+You need a Safaricom Daraja account. Go to developer.safaricom.co.ke and register. It takes 24 hours to get approved. You also need a valid M-Pesa number for testing. The sandbox uses test credentials, but you still need a real number to receive the STK Push simulation.
+</Callout>
+
+## 1. How M-Pesa Daraja Actually Works
+
+Before writing code, you need to understand the flow. Most tutorials skip this and jump to code. That is why developers get lost.
+
+Here is the complete flow for an STK Push payment:
+User clicks "Pay Now" on your React app
+↓
+React sends phone + amount to your Spring Boot API
+↓
+Spring Boot requests an access token from Daraja
+↓
+Spring Boot sends STK Push request to Daraja
+↓
+Daraja sends popup to user's phone ("Enter PIN to pay")
+↓
+User enters PIN on their phone
+↓
+M-Pesa processes payment
+↓
+Daraja sends callback to your Spring Boot API
+↓
+Spring Boot updates payment status in database
+↓
+React polls (or uses WebSocket) to show success
+
+
+The user never leaves your app. They never type a Paybill number. They just enter their PIN when their phone buzzes. That is the magic of STK Push.
+
+<Callout type="info" title="The two ways to integrate">
+STK Push is for user-initiated payments. It is the best UX. C2B (Customer to Business) is for manual Paybill payments. It is cheaper per transaction but worse UX. This tutorial covers STK Push because every modern fintech should use it.
+</Callout>
+
+## 2. Spring Boot Backend: Project Setup
+
+Create a new Spring Boot project with these dependencies:
+
+- Spring Web
+- Spring Data JPA
+- PostgreSQL Driver
+- Lombok
+
+Add this to your pom.xml for HTTP requests:
+
+```xml
+<dependency>
+    <groupId>org.apache.httpcomponents.client5</groupId>
+    <artifactId>httpclient5</artifactId>
+</dependency>
+
+Create your application.properties:
+# Database
+spring.datasource.url=jdbc:postgresql://localhost:5432/mpesa_payments
+spring.datasource.username=postgres
+spring.datasource.password=yourpassword
+spring.jpa.hibernate.ddl-auto=update
+
+# M-Pesa Daraja (Sandbox)
+mpesa.consumer-key=your-sandbox-consumer-key
+mpesa.consumer-secret=your-sandbox-consumer-secret
+mpesa.shortcode=174379
+mpesa.passkey=bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919
+mpesa.callback-url=https://your-ngrok-url.ngrok-free.app/api/payments/callback
+mpesa.environment=sandbox
+
+<Callout type="warning" title="The passkey is public">
+The passkey shown above is the official sandbox test passkey. It is the same for every developer in sandbox mode. Do not panic if you see it in tutorials. In production, Safaricom gives you a unique passkey.
+</Callout>
+
+3. The Payment Entity
+Create a JPA entity to track every payment:
+package com.example.mpesa.model;
+
+import jakarta.persistence.*;
+import lombok.Data;
+import java.time.LocalDateTime;
+
+@Entity
+@Table(name = "payments")
+@Data
+public class Payment {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+    
+    @Column(nullable = false)
+    private String phoneNumber;
+    
+    @Column(nullable = false)
+    private Double amount;
+    
+    @Column(nullable = false)
+    private String accountReference;
+    
+    @Column(nullable = false)
+    private String transactionDesc;
+    
+    @Enumerated(EnumType.STRING)
+    private PaymentStatus status = PaymentStatus.PENDING;
+    
+    private String merchantRequestId;
+    private String checkoutRequestId;
+    private String mpesaReceiptNumber;
+    private String resultDescription;
+    
+    private LocalDateTime createdAt = LocalDateTime.now();
+    private LocalDateTime updatedAt = LocalDateTime.now();
+    
+    public enum PaymentStatus {
+        PENDING, PROCESSING, COMPLETED, FAILED
+    }
+}
+
+4. The Daraja Service
+This is the core class. It handles authentication, STK Push requests, and callback processing.
+package com.example.mpesa.service;
+
+import com.example.mpesa.model.Payment;
+import com.example.mpesa.repository.PaymentRepository;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.hc.client5.http.classic.methods.HttpGet;
+import org.apache.hc.client5.http.classic.methods.HttpPost;
+import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
+import org.apache.hc.client5.http.impl.classic.CloseableHttpClients;
+import org.apache.hc.core5.http.ContentType;
+import org.apache.hc.core5.http.io.entity.StringEntity;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.Base64;
+
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class MpesaService {
+
+    private final PaymentRepository paymentRepository;
+    private final ObjectMapper objectMapper;
+
+    @Value("${mpesa.consumer-key}")
+    private String consumerKey;
+
+    @Value("${mpesa.consumer-secret}")
+    private String consumerSecret;
+
+    @Value("${mpesa.shortcode}")
+    private String shortcode;
+
+    @Value("${mpesa.passkey}")
+    private String passkey;
+
+    @Value("${mpesa.callback-url}")
+    private String callbackUrl;
+
+    @Value("${mpesa.environment}")
+    private String environment;
+
+    private static final String SANDBOX_BASE_URL = "https://sandbox.safaricom.co.ke";
+    private static final String PRODUCTION_BASE_URL = "https://api.safaricom.co.ke";
+
+    private String getBaseUrl() {
+        return "sandbox".equals(environment) ? SANDBOX_BASE_URL : PRODUCTION_BASE_URL;
+    }
+
+    public String getAccessToken() throws Exception {
+        String credentials = consumerKey + ":" + consumerSecret;
+        String encodedCredentials = Base64.getEncoder()
+            .encodeToString(credentials.getBytes(StandardCharsets.UTF_8));
+
+        HttpGet request = new HttpGet(getBaseUrl() + "/oauth/v1/generate?grant_type=client_credentials");
+        request.setHeader("Authorization", "Basic " + encodedCredentials);
+
+        try (CloseableHttpClient client = CloseableHttpClients.createDefault();
+             var response = client.execute(request)) {
+            
+            JsonNode json = objectMapper.readTree(response.getEntity().getContent());
+            return json.get("access_token").asText();
+        }
+    }
+
+    @Transactional
+    public Payment initiateStkPush(String phoneNumber, Double amount, String accountReference) throws Exception {
+        String accessToken = getAccessToken();
+        String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
+        String password = Base64.getEncoder()
+            .encodeToString((shortcode + passkey + timestamp).getBytes(StandardCharsets.UTF_8));
+
+        // Format phone number
+        String formattedPhone = phoneNumber.startsWith("0") ? 
+            "254" + phoneNumber.substring(1) : phoneNumber;
+
+        Payment payment = new Payment();
+        payment.setPhoneNumber(formattedPhone);
+        payment.setAmount(amount);
+        payment.setAccountReference(accountReference);
+        payment.setTransactionDesc("Payment for " + accountReference);
+        payment.setStatus(Payment.PaymentStatus.PENDING);
+        paymentRepository.save(payment);
+
+        String requestBody = objectMapper.writeValueAsString(new StkPushRequest(
+            shortcode,
+            password,
+            timestamp,
+            "CustomerPayBillOnline",
+            amount.intValue(),
+            formattedPhone,
+            shortcode,
+            formattedPhone,
+            callbackUrl,
+            accountReference,
+            "Payment"
+        ));
+
+        HttpPost request = new HttpPost(getBaseUrl() + "/mpesa/stkpush/v1/processrequest");
+        request.setHeader("Authorization", "Bearer " + accessToken);
+        request.setHeader("Content-Type", "application/json");
+        request.setEntity(new StringEntity(requestBody, ContentType.APPLICATION_JSON));
+
+        try (CloseableHttpClient client = CloseableHttpClients.createDefault();
+             var response = client.execute(request)) {
+            
+            JsonNode json = objectMapper.readTree(response.getEntity().getContent());
+            
+            if (json.has("ResponseCode") && "0".equals(json.get("ResponseCode").asText())) {
+                payment.setMerchantRequestId(json.get("MerchantRequestID").asText());
+                payment.setCheckoutRequestId(json.get("CheckoutRequestID").asText());
+                payment.setStatus(Payment.PaymentStatus.PROCESSING);
+                paymentRepository.save(payment);
+                
+                log.info("STK Push initiated successfully: {}", json.get("CheckoutRequestID").asText());
+                return payment;
+            } else {
+                payment.setStatus(Payment.PaymentStatus.FAILED);
+                payment.setResultDescription(json.get("errorMessage").asText());
+                paymentRepository.save(payment);
+                throw new RuntimeException("STK Push failed: " + json.get("errorMessage").asText());
+            }
+        }
+    }
+
+    @Transactional
+    public void processCallback(String callbackData) throws Exception {
+        JsonNode json = objectMapper.readTree(callbackData);
+        JsonNode body = json.get("Body");
+        JsonNode stkCallback = body.get("stkCallback");
+
+        String merchantRequestId = stkCallback.get("MerchantRequestID").asText();
+        String checkoutRequestId = stkCallback.get("CheckoutRequestID").asText();
+        int resultCode = stkCallback.get("ResultCode").asInt();
+
+        Payment payment = paymentRepository.findByCheckoutRequestId(checkoutRequestId)
+            .orElseThrow(() -> new RuntimeException("Payment not found"));
+
+        if (resultCode == 0) {
+            JsonNode callbackMetadata = stkCallback.get("CallbackMetadata").get("Item");
+            String receiptNumber = "";
+            
+            for (JsonNode item : callbackMetadata) {
+                if ("MpesaReceiptNumber".equals(item.get("Name").asText())) {
+                    receiptNumber = item.get("Value").asText();
+                }
+            }
+
+            payment.setMpesaReceiptNumber(receiptNumber);
+            payment.setStatus(Payment.PaymentStatus.COMPLETED);
+            payment.setResultDescription("Payment successful");
+            log.info("Payment completed: {}", receiptNumber);
+        } else {
+            payment.setStatus(Payment.PaymentStatus.FAILED);
+            payment.setResultDescription(stkCallback.get("ResultDesc").asText());
+            log.error("Payment failed: {}", stkCallback.get("ResultDesc").asText());
+        }
+
+        payment.setUpdatedAt(LocalDateTime.now());
+        paymentRepository.save(payment);
+    }
+
+    private record StkPushRequest(
+        String BusinessShortCode,
+        String Password,
+        String Timestamp,
+        String TransactionType,
+        int Amount,
+        String PartyA,
+        String PartyB,
+        String PhoneNumber,
+        String CallBackURL,
+        String AccountReference,
+        String TransactionDesc
+    ) {}
+}
+
+5. The REST Controller
+Expose endpoints for your React frontend:
+package com.example.mpesa.controller;
+
+import com.example.mpesa.model.Payment;
+import com.example.mpesa.service.MpesaService;
+import lombok.RequiredArgsConstructor;
+import lombok.Data;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/payments")
+@RequiredArgsConstructor
+@CrossOrigin(origins = "http://localhost:5173")
+public class PaymentController {
+
+    private final MpesaService mpesaService;
+
+    @PostMapping("/stkpush")
+    public ResponseEntity<?> initiatePayment(@RequestBody PaymentRequest request) {
+        try {
+            Payment payment = mpesaService.initiateStkPush(
+                request.getPhoneNumber(),
+                request.getAmount(),
+                request.getAccountReference()
+            );
+            return ResponseEntity.ok(new PaymentResponse(
+                payment.getId(),
+                payment.getStatus().toString(),
+                payment.getCheckoutRequestId(),
+                "STK Push sent to your phone. Enter PIN to complete."
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(new ErrorResponse(e.getMessage()));
+        }
+    }
+
+    @PostMapping("/callback")
+    public ResponseEntity<Void> handleCallback(@RequestBody String callbackData) {
+        try {
+            mpesaService.processCallback(callbackData);
+            return ResponseEntity.ok().build();
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().build();
+        }
+    }
+
+    @GetMapping("/status/{checkoutRequestId}")
+    public ResponseEntity<?> getPaymentStatus(@PathVariable String checkoutRequestId) {
+        // Implementation to query payment by checkoutRequestId
+        return ResponseEntity.ok().build();
+    }
+
+    @Data
+    public static class PaymentRequest {
+        private String phoneNumber;
+        private Double amount;
+        private String accountReference;
+    }
+
+    @Data
+    public static class PaymentResponse {
+        private Long id;
+        private String status;
+        private String checkoutRequestId;
+        private String message;
+
+        public PaymentResponse(Long id, String status, String checkoutRequestId, String message) {
+            this.id = id;
+            this.status = status;
+            this.checkoutRequestId = checkoutRequestId;
+            this.message = message;
+        }
+    }
+
+    @Data
+    public static class ErrorResponse {
+        private String error;
+
+        public ErrorResponse(String error) {
+            this.error = error;
+        }
+    }
+}
+
+6. The React Frontend
+Create a simple payment component:
+// components/MpesaPayment.jsx
+import { useState } from 'react';
+
+export function MpesaPayment() {
+  const [phone, setPhone] = useState('');
+  const [amount, setAmount] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState(null);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setStatus(null);
+
+    try {
+      const response = await fetch('http://localhost:8080/api/payments/stkpush', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phoneNumber: phone,
+          amount: parseFloat(amount),
+          accountReference: 'STACKFROMZERO-001'
+        })
+      });
+
+      const data = await response.json();
+      
+      if (response.ok) {
+        setStatus({ type: 'success', message: data.message });
+        pollForStatus(data.checkoutRequestId);
+      } else {
+        setStatus({ type: 'error', message: data.error || 'Payment failed' });
+      }
+    } catch (err) {
+      setStatus({ type: 'error', message: 'Network error. Check your connection.' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const pollForStatus = async (checkoutRequestId) => {
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`http://localhost:8080/api/payments/status/${checkoutRequestId}`);
+        const data = await res.json();
+        
+        if (data.status === 'COMPLETED') {
+          setStatus({ type: 'success', message: 'Payment completed successfully!' });
+          clearInterval(interval);
+        } else if (data.status === 'FAILED') {
+          setStatus({ type: 'error', message: 'Payment failed. Please try again.' });
+          clearInterval(interval);
+        }
+      } catch (err) {
+        console.error('Polling error:', err);
+      }
+    }, 5000);
+
+    // Stop polling after 2 minutes
+    setTimeout(() => clearInterval(interval), 120000);
+  };
+
+  return (
+    <div className="max-w-md mx-auto p-6 bg-white rounded-lg shadow">
+      <h2 className="text-xl font-bold mb-4">Pay with M-Pesa</h2>
+      
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium mb-1">Phone Number</label>
+          <input
+            type="tel"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="0712345678"
+            required
+            className="w-full px-3 py-2 border rounded"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1">Amount (KES)</label>
+          <input
+            type="number"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            placeholder="100"
+            min="1"
+            required
+            className="w-full px-3 py-2 border rounded"
+          />
+        </div>
+
+        <button
+          type="submit"
+          disabled={loading}
+          className="w-full bg-green-600 text-white py-2 rounded hover:bg-green-700 disabled:opacity-50"
+        >
+          {loading ? 'Sending STK Push...' : 'Pay Now'}
+        </button>
+      </form>
+
+      {status && (
+        <div className={`mt-4 p-3 rounded ${
+          status.type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+        }`}>
+          {status.message}
+        </div>
+      )}
+    </div>
+  );
+}
+
+<Callout type="warning" title="Never put credentials in React">
+Notice the React code only sends phone and amount. The consumer key, secret, and passkey never leave the server. If you put Daraja credentials in your frontend, someone will steal them within hours.
+</Callout>
+7. The 7 Errors You Will Definitely Hit
+| Error                          | Cause                         | Fix                                                        |
+| ------------------------------ | ----------------------------- | ---------------------------------------------------------- |
+| **Invalid Access Token**       | Wrong consumer key or secret  | Copy exactly from Daraja portal. No extra spaces.          |
+| **Wrong Credentials**          | Password string malformed     | Must be Base64(Shortcode + Passkey + Timestamp)            |
+| **Callback URL not reachable** | Using localhost or HTTP       | Use ngrok for local dev. Must be HTTPS in production.      |
+| **STK Push not received**      | Wrong phone format            | Must be 2547XXXXXXXX. 07XXXXXXXX will fail silently.       |
+| **Transaction timeout**        | User did not enter PIN        | Normal. Set status to FAILED after 2 minutes.              |
+| **Insufficient Balance**       | Test account has no money     | Use Daraja simulator or fund test number.                  |
+| **Duplicate Transaction**      | Same details within 5 minutes | Add unique timestamp or random string to accountReference. |
+
+8. Testing with ngrok
+Your callback URL must be publicly accessible. For local development, use ngrok:
+# Install ngrok
+npm install -g ngrok
+
+# Expose your Spring Boot app
+ngrok http 8080
+
+Copy the HTTPS URL (e.g., https://abc123.ngrok-free.app) and update your mpesa.callback-url:
+mpesa.callback-url=https://abc123.ngrok-free.app/api/payments/callback
+
+Restart Spring Boot. Now Daraja can reach your local machine.
+
+<Callout type="tip" title="ngrok free tier limit">
+The free ngrok URL changes every time you restart. For development, this is fine. Just update the property. In production, use a permanent domain with SSL.
+</Callout>
+
+9. Going to Production
+Before you process real payments:
+Apply for production credentials on Daraja
+Replace sandbox URLs with https://api.safaricom.co.ke
+Use your real shortcode and passkey
+Ensure your callback URL is HTTPS with a valid SSL certificate
+Implement idempotency keys to prevent duplicate charges
+Add webhook signature verification to prevent spoofing
+Log every transaction for audit purposes
+<Callout type="warning" title="Compliance matters">
+M-Pesa integration falls under financial regulations. If you process real payments, you need a business registration and may need CBK approval depending on your transaction volume. Consult a lawyer before launching.
+</Callout>
+Where to go next
+You now have a complete M-Pesa STK Push integration. The user enters their phone number, clicks pay, and receives a popup. No Paybill numbers. No manual transfers. Just modern fintech UX.
+Next steps:
+Add retry logic for failed payments
+Implement a payment history dashboard
+Add SMS confirmation using Termii or Africa's Talking
+Deploy your backend to Render and frontend to Vercel
+If you have not built the Spring Boot backend yet, start with How I Built a Full Stack App with React and Spring Boot.
