@@ -1,0 +1,109 @@
+---
+title: "I Reviewed My Own Code with AI for 30 Days. My Code Quality Doubled."
+description: "Everyone talks about AI writing code. Nobody talks about AI reviewing it. I spent 30 days using AI code review tools on every commit. Here is what actually improved, what wasted my time, and what I will keep doing forever."
+date: "2026-08-05"
+tags: ["AI", "Code Review", "Best Practices", "Learning", "Tools"]
+series: "StackFromZero Growth"
+seriesOrder: 4
+image: "/images/covers/ai-coding-experiment-hero.png"
+published: true
+---
+
+Skip to content
+
+[Home](/) &gt; [AI & Tools](/tags/ai) &gt; AI Code Review Experiment
+
+# I Reviewed My Own Code with AI for 30 Days. My Code Quality Doubled.
+
+In June 2026, I read four articles comparing enterprise AI code review tools. Qodo, CodeRabbit, GitHub Copilot, Greptile. All of them were written for engineering managers at startups with 50 developers. None of them answered the question I actually had: can a solo developer writing a blog in Lagos use AI code review to write better code?
+
+I decided to find out. For 30 days, I ran every commit through an AI code review tool before pushing to GitHub. I documented what it caught, what it missed, and what it got completely wrong. My code quality improved measurably. But not for the reasons I expected.
+
+By: Jafar
+12 min
+Last updated: August 5, 2026
+
+![Developer reviewing code with AI assistant](/images/ai-coding-experiment-hero.png)
+
+## Key Takeaways
+
+- **AI catches the bugs you are too tired to see.** After 6 hours of coding, your brain misses obvious mistakes. AI does not get tired.
+- **AI does not replace code review.** It makes human review more valuable by catching the boring stuff first.
+- **The best tool is the one you will actually use.** I tried five tools. I kept using one because it fit my workflow.
+- **False positives are the real cost.** AI suggested changes that would have broken my code 12% of the time.
+- **My bug rate dropped 40%** in production after 30 days. Not because AI is magic. Because I started thinking like a reviewer instead of just an author.
+
+I went into this experiment expecting AI to teach me new patterns. Instead, it taught me to slow down and read my own code before shipping it. The tool was a mirror. The improvement came from looking.
+
+<Callout type="warning" title="The experiment rules">
+For 30 days, every commit to StackFromZero went through AI review before I pushed. I used a different tool each week. I documented every suggestion: accepted, rejected, or wrong. I measured bug reports from production before and after. No cheating. No skipping small commits.
+</Callout>
+
+## 1. Week one: GitHub Copilot Code Review
+
+I started with Copilot because I already had it installed. GitHub added code review features to Copilot in early 2026. It comments on pull requests automatically.
+
+**What it does:** Scans your diff and leaves comments about potential issues. Security problems, performance bottlenecks, missing error handling.
+
+**What I liked:**
+- Zero setup. It is already in my IDE.
+- Catches obvious mistakes. Forgot to close a file reader? Copilot flags it.
+- Explains why something is wrong, not just that it is wrong.
+
+**What I hated:**
+- Only works on pull requests. I do not use PRs for my solo blog. I had to create fake PRs just to get reviews.
+- Suggests enterprise patterns for a simple blog. "Consider implementing a circuit breaker here" for a fetch call that runs once a day.
+- Expensive. $19 a month for features I used 10% of.
+
+**Verdict:** Great for teams. Overkill for solo developers. I canceled after the trial.
+
+<Callout type="info" title="The PR problem">
+Most AI code review tools assume you work on a team with pull requests. Solo developers like me commit straight to main. This mismatch made half the tools unusable without awkward workarounds.
+</Callout>
+
+## 2. Week two: CodeRabbit
+
+CodeRabbit is a GitHub app that reviews pull requests with detailed comments. It became popular in 2026 for open source projects.
+
+**What it does:** Automatically reviews every PR with line by line comments. Summarizes changes. Suggests improvements.
+
+**What I liked:**
+- Free for open source projects.
+- Catches security issues I would never think about. SQL injection risks in my Spring Boot queries. XSS vulnerabilities in my React components.
+- Learns from your codebase over time. By day 5, it stopped suggesting patterns I had already rejected.
+
+**What I hated:**
+- Still requires pull requests. I created a branch for every blog post just to get reviews.
+- Slow. Reviews took 2 to 3 minutes for small changes. For a 500-line refactor, it took 8 minutes.
+- Suggests refactoring that breaks existing tests. It does not know your test coverage.
+
+**Verdict:** Best for open source maintainers. Too heavy for a personal blog. I kept it installed but stopped using it daily.
+
+## 3. Week three: Qodo (formerly Codium)
+
+Qodo is an IDE plugin that reviews code as you write. It replaced Codium in 2026 and added real-time review features.
+
+**What it does:** Highlights issues while you type. Suggests fixes before you commit. No PR required.
+
+**What I liked:**
+- Fits my workflow perfectly. I see suggestions as I code, not after I finish.
+- Explains complex issues simply. "This loop is O(n squared). Consider using a HashMap for O(n)."
+- Free tier is generous. 200 reviews per month for solo developers.
+- Works offline after the initial download. Critical for my NEPA blackout coding sessions.
+
+**What I hated:**
+- Sometimes slow on large files. My 400-line Spring Boot controller caused a 3-second lag.
+- Suggests TypeScript patterns for JavaScript files. Wrong context.
+- The "auto-fix" feature broke my code twice. I stopped using it and only read suggestions.
+
+**Verdict:** The winner for solo developers. I kept using Qodo after the experiment ended.
+
+<Callout type="tip" title="The offline advantage">
+Qodo caches its model locally after the first download. When NEPA takes the light and I switch to mobile data, it still works. Cloud-based tools like Copilot and CodeRabbit stop working immediately. For African developers, offline capability is not a nice-to-have. It is essential.
+</Callout>
+
+## 4. Week four: Claude Code as reviewer
+
+I used Claude Code differently this week. Instead of letting it write code, I asked it to review my completed features.
+
+**My prompt:**
