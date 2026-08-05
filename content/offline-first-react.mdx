@@ -12,7 +12,7 @@ published: true
 You've built a beautiful React app. It fetches data from your API, displays it in sleek components, and your friends love it — until they open it on a bus with no signal, or their data bundle runs out, or NEPA takes the light and the WiFi dies. In Nigeria and much of Africa, the internet is not a guarantee. It's a luxury that comes and goes. This guide teaches you to build React apps that don't just survive offline — they thrive there.
 
 <Callout type="info" title="Why offline-first matters here">
-In Nigeria, mobile data costs roughly $1.40 per GB — about 7% of monthly minimum wage. Power outages are daily. 4G coverage is patchy outside major cities. An app that assumes always-on internet excludes most of your potential users. Offline-first is not a nice-to-have. It's accessibility.
+In Nigeria, mobile data costs roughly $1.40 per GB  about 7% of monthly minimum wage. Power outages are daily. 4G coverage is patchy outside major cities. An app that assumes always-on internet excludes most of your potential users. Offline-first is not a nice-to-have. It's accessibility.
 </Callout>
 
 ## What "offline-first" actually means
@@ -84,7 +84,7 @@ export default defineConfig({
 That's the entire PWA setup. The plugin generates a service worker at build time, precaches your app shell, and registers it for you. Open your built app, load it once with internet, then turn off your connection and reload. The interface still appears. That is the app shell being served from cache instead of the network.
 
 <Callout type="warning" title="Service workers need HTTPS">
-Service workers only run on `https://` or `http://localhost`. They will silently do nothing on an insecure origin. When you deploy, make sure your host serves over HTTPS — Vercel, Netlify, and Render all do this for free.
+Service workers only run on `https://` or `http://localhost`. They will silently do nothing on an insecure origin. When you deploy, make sure your host serves over HTTPS  Vercel, Netlify, and Render all do this for free.
 </Callout>
 
 ## Step 2: Cache your API responses
@@ -133,7 +133,7 @@ export default function App() {
 
 Now your data survives a full page reload with no internet. React Query rehydrates the cache from `localStorage` on startup, hands it to your components immediately, and only hits the network when the connection allows.
 
-A component that reads this cache looks completely ordinary — you don't write any offline logic here, React Query handles it:
+A component that reads this cache looks completely ordinary  you don't write any offline logic here, React Query handles it:
 
 ```jsx
 import { useQuery } from "@tanstack/react-query";
@@ -161,7 +161,7 @@ On a slow connection the user sees their cached tasks the instant the app opens,
 
 ## Step 3: Detect the network and tell the user
 
-Users on unreliable connections deserve honesty. A small, unobtrusive banner that says "You're offline — showing saved data" builds trust. The browser exposes the connection state through the `navigator.onLine` property and the `online` / `offline` events.
+Users on unreliable connections deserve honesty. A small, unobtrusive banner that says "You're offline  showing saved data" builds trust. The browser exposes the connection state through the `navigator.onLine` property and the `online` / `offline` events.
 
 Wrap that in a reusable hook:
 
@@ -186,7 +186,7 @@ export function useOnlineStatus() {
 }
 ```
 
-`useSyncExternalStore` is the React 18 hook built exactly for subscribing to browser APIs like this — it avoids the tearing bugs you'd get from a naive `useState` + `useEffect` version. Use it in any component:
+`useSyncExternalStore` is the React 18 hook built exactly for subscribing to browser APIs like this  it avoids the tearing bugs you'd get from a naive `useState` + `useEffect` version. Use it in any component:
 
 ```jsx
 function OfflineBanner() {
@@ -195,7 +195,7 @@ function OfflineBanner() {
 
   return (
     <div role="status" className="offline-banner">
-      You're offline. Showing saved data — changes will sync when you reconnect.
+      You're offline. Showing saved data  changes will sync when you reconnect.
     </div>
   );
 }
@@ -209,7 +209,7 @@ function OfflineBanner() {
 
 Reading offline is solved. Writing is the harder half. When a user creates a task with no connection, you can't just drop it. You save it locally, mark it as pending, and replay it when the network returns.
 
-For structured, larger data, `localStorage` is too limited — it's synchronous, string-only, and capped at around 5MB. **IndexedDB** is the right tool. The [`idb`](https://github.com/jakearchibald/idb) library gives it a clean promise-based API:
+For structured, larger data, `localStorage` is too limited  it's synchronous, string-only, and capped at around 5MB. **IndexedDB** is the right tool. The [`idb`](https://github.com/jakearchibald/idb) library gives it a clean promise-based API:
 
 ```bash
 npm install idb
@@ -258,7 +258,7 @@ async function createTask(task) {
     if (!res.ok) throw new Error("Server rejected the request");
     return res.json();
   } catch (err) {
-    // Network failed — save locally and replay later.
+    // Network failed  save locally and replay later.
     await queueTask(task);
     return { ...task, pending: true };
   }
@@ -279,7 +279,7 @@ async function syncPendingTasks() {
       });
       if (res.ok) await clearQueuedTask(task.localId);
     } catch {
-      // Still offline — stop and try again on the next reconnect.
+      // Still offline  stop and try again on the next reconnect.
       break;
     }
   }
@@ -291,7 +291,7 @@ window.addEventListener("online", syncPendingTasks);
 This is the same pattern messaging apps use: your message shows a clock icon while pending, then a tick once it's delivered. The user is never blocked by the network.
 
 <Callout type="warning" title="Watch out for duplicate writes">
-If a request actually reached the server but the response was lost on a flaky connection, replaying it creates a duplicate. Protect against this with an idempotency key — a unique id the client generates and the server uses to reject repeats. Generate it once with `crypto.randomUUID()` and send it with every attempt of the same write.
+If a request actually reached the server but the response was lost on a flaky connection, replaying it creates a duplicate. Protect against this with an idempotency key  a unique id the client generates and the server uses to reject repeats. Generate it once with `crypto.randomUUID()` and send it with every attempt of the same write.
 </Callout>
 
 ## Step 5: Shrink everything for expensive data

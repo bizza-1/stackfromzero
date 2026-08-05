@@ -15,7 +15,7 @@ Payment code is the one place where a shortcut can cost real money. The single m
 
 ## How Paystack payments actually work
 
-Before writing code, understand the flow. A Paystack payment has three phases, and your server is involved at the start and the end — never blindly in the middle.
+Before writing code, understand the flow. A Paystack payment has three phases, and your server is involved at the start and the end  never blindly in the middle.
 
 First, **initialize**. Your server tells Paystack "I want to charge this customer this amount." Paystack replies with a unique reference and an authorization URL. Second, **pay**. You send the customer to that authorization URL (or open Paystack's popup on the front end), where they enter their card or choose bank transfer. Paystack handles all the sensitive card data — it never touches your server, which keeps you out of PCI compliance scope. Third, **verify**. After payment, Paystack redirects the customer back and also gives you the reference. Your server calls Paystack's verify endpoint with that reference to confirm the payment succeeded, the amount was correct, and only then do you fulfill the order.
 
@@ -25,8 +25,8 @@ The golden rule lives in phase three: **the front end can be tampered with, so t
 
 Create a free Paystack account and open the dashboard. Under **Settings → API Keys & Webhooks** you'll find two keys for test mode:
 
-- **Public key** (`pk_test_...`) — safe to expose on the front end. It only initializes payments.
-- **Secret key** (`sk_test_...`) — must stay on your server, always. It can move money and read transaction data.
+- **Public key** (`pk_test_...`)  safe to expose on the front end. It only initializes payments.
+- **Secret key** (`sk_test_...`)  must stay on your server, always. It can move money and read transaction data.
 
 Paystack starts you in test mode, where you can use test card numbers to simulate payments without real money changing hands. Switch to live keys only when you're ready to launch.
 
@@ -85,7 +85,7 @@ public class PaystackConfig {
 
 ## Modeling the request and response
 
-Paystack's API speaks JSON, so we create small Java records to represent the data we send and receive. Records are perfect here — immutable, concise, and self-documenting.
+Paystack's API speaks JSON, so we create small Java records to represent the data we send and receive. Records are perfect here  immutable, concise, and self-documenting.
 
 ```java
 package com.stackfromzero.payments;
@@ -98,7 +98,7 @@ public record InitializeResponse(String authorizationUrl, String reference) {}
 ```
 
 <Callout type="info" title="Amounts are in kobo">
-Paystack expects amounts in the smallest currency unit. For Naira that's kobo, so ₦5,000 is `500000`. Always store and transmit money as integers in the smallest unit — never as a floating-point number of Naira. Floating-point rounding errors and money do not mix.
+Paystack expects amounts in the smallest currency unit. For Naira that's kobo, so ₦5,000 is `500000`. Always store and transmit money as integers in the smallest unit  never as a floating-point number of Naira. Floating-point rounding errors and money do not mix.
 </Callout>
 
 ## Building the payment service
@@ -256,7 +256,7 @@ public class WebhookController {
 
         String expected = hmacSha512(payload, config.getSecretKey());
         if (!expected.equals(signature)) {
-            // Not from Paystack — ignore it
+            // Not from Paystack ignore it
             return "invalid";
         }
 
@@ -297,7 +297,7 @@ PIN: 0000
 OTP: 123456
 ```
 
-Run through your integration end to end with this card: initialize a payment from React, get redirected to Paystack's checkout, pay with the test card, land back on your callback, and watch your server verify the reference and return `verified: true`. Paystack also provides cards that simulate a declined payment or an insufficient-funds error, so you can confirm your failure handling works too. Test both paths — a payment flow that only handles success will eventually strand a real customer who was declined.
+Run through your integration end to end with this card: initialize a payment from React, get redirected to Paystack's checkout, pay with the test card, land back on your callback, and watch your server verify the reference and return `verified: true`. Paystack also provides cards that simulate a declined payment or an insufficient-funds error, so you can confirm your failure handling works too. Test both paths  a payment flow that only handles success will eventually strand a real customer who was declined.
 
 <Callout type="info" title="Watch it in the dashboard">
 Every test transaction shows up under the Transactions tab of your Paystack dashboard, complete with its status and reference. It's the fastest way to confirm your `initialize` call is actually reaching Paystack and to cross-check what your `verify` call should return.
@@ -316,7 +316,7 @@ boolean amountOk = paidAmount == expectedAmountInKobo;
 return statusOk && amountOk;
 ```
 
-Only when both the status and the amount check out should you deliver value. This single extra comparison closes off a whole class of tampering attacks, and it costs you two lines of code. Payment security is mostly made of small, deliberate checks like this one — none of them clever, all of them necessary.
+Only when both the status and the amount check out should you deliver value. This single extra comparison closes off a whole class of tampering attacks, and it costs you two lines of code. Payment security is mostly made of small, deliberate checks like this one  none of them clever, all of them necessary.
 
 ## Security best practices checklist
 
@@ -334,4 +334,4 @@ Payments deserve a deliberate security review. Before you go live, confirm every
 
 You now have a secure, verified Paystack integration: initialize on the server, pay on Paystack's hosted checkout, and confirm through both redirect verification and signed webhooks. That's the same architecture real Nigerian startups run in production.
 
-From here, persist your transactions in a database so you have a permanent record, add email receipts, and build an admin view to reconcile payments. And when you're ready to put this online, my guide on [deploying Spring Boot on Render](/blog/deploy-spring-boot-render) will get your API — webhook endpoint and all — live for free.
+From here, persist your transactions in a database so you have a permanent record, add email receipts, and build an admin view to reconcile payments. And when you're ready to put this online, my guide on [deploying Spring Boot on Render](/blog/deploy-spring-boot-render) will get your API  webhook endpoint and all  live for free.

@@ -1,6 +1,6 @@
 ---
 title: "Deploying Spring Boot on Render.com: Free Hosting for Students"
-description: "Host your Java backend for $0. Step-by-step deployment guide."
+description: "Host your Java backend for $0. Step by step deployment guide."
 date: 2026-07-18
 tags: ["Spring Boot", "Deployment", "DevOps"]
 series: "Full-Stack Foundations"
@@ -9,7 +9,7 @@ image: "/images/covers/deploy-spring-boot-render.svg"
 published: true
 ---
 
-You've built a Spring Boot API on your laptop and it works beautifully. But an API that only runs on `localhost` can't help anyone. To share it with the world — or just to test it from your phone — you need to deploy it somewhere with a public URL. This guide shows you how to do that for free on [Render.com](https://render.com), a platform that's genuinely friendly to students and side projects.
+You've built a Spring Boot API on your laptop and it works beautifully. But an API that only runs on `localhost` can't help anyone. To share it with the world  or just to test it from your phone  you need to deploy it somewhere with a public URL. This guide shows you how to do that for free on [Render.com](https://render.com), a platform that's genuinely friendly to students and side projects.
 
 <Callout type="tip" title="Why Render?">
 Render gives you a free web service tier, deploys straight from a Git push, provisions HTTPS automatically, and doesn't ask for a credit card to get started. For a learning project or an MVP, that's hard to beat.
@@ -17,7 +17,7 @@ Render gives you a free web service tier, deploys straight from a Git push, prov
 
 ## What free actually means
 
-Let's be honest about the free tier so there are no surprises. Render's free web services **spin down after 15 minutes of inactivity**. The next request wakes the service back up, which takes 30 to 60 seconds — a "cold start." For a portfolio project or a demo you're showing occasionally, that's perfectly fine. For a production app with real users, you'd upgrade to a paid instance that stays warm. We'll build with the free tier and note exactly where you'd upgrade later.
+Let's be honest about the free tier so there are no surprises. Render's free web services **spin down after 15 minutes of inactivity**. The next request wakes the service back up, which takes 30 to 60 seconds  a "cold start." For a portfolio project or a demo you're showing occasionally, that's perfectly fine. For a production app with real users, you'd upgrade to a paid instance that stays warm. We'll build with the free tier and note exactly where you'd upgrade later.
 
 ## Preparing your Spring Boot app for production
 
@@ -88,22 +88,22 @@ For the **Runtime**, Render usually detects a Docker or native environment. For 
 java -jar target/*.jar
 ```
 
-The wildcard `target/*.jar` means you don't have to hard-code the version number — it picks up whatever JAR the build produced. Select the **Free** instance type, then click **Create Web Service**.
+The wildcard `target/*.jar` means you don't have to hard-code the version number  it picks up whatever JAR the build produced. Select the **Free** instance type, then click **Create Web Service**.
 
 ## Watching the first deploy
 
-Render immediately kicks off a build. You'll see the live logs stream in — Maven downloading dependencies, compiling your code, packaging the JAR, and finally your app starting up. Watch for the familiar Spring Boot banner and a line like:
+Render immediately kicks off a build. You'll see the live logs stream in  Maven downloading dependencies, compiling your code, packaging the JAR, and finally your app starting up. Watch for the familiar Spring Boot banner and a line like:
 
 ```plaintext
 Tomcat started on port(s): 10000 (http)
 Started TaskmanagerApplication in 4.2 seconds
 ```
 
-That port number comes from Render's `PORT` variable — proof that step one worked. Once the deploy succeeds, Render gives you a public URL like `https://taskmanager-xyz.onrender.com`. Visit `https://taskmanager-xyz.onrender.com/api/tasks` and you should see your JSON, served over HTTPS, from the internet. You just shipped.
+That port number comes from Render's `PORT` variable  proof that step one worked. Once the deploy succeeds, Render gives you a public URL like `https://taskmanager-xyz.onrender.com`. Visit `https://taskmanager-xyz.onrender.com/api/tasks` and you should see your JSON, served over HTTPS, from the internet. You just shipped.
 
 ## Adding a real database
 
-The in-memory H2 database resets on every restart, which on the free tier means your data vanishes whenever the service spins down. For anything persistent, add a real PostgreSQL database — and Render offers a free one.
+The in-memory H2 database resets on every restart, which on the free tier means your data vanishes whenever the service spins down. For anything persistent, add a real PostgreSQL database  and Render offers a free one.
 
 1. Click **New +** and choose **PostgreSQL**.
 2. Give it a name and select the free plan, then create it.
@@ -127,7 +127,7 @@ spring.jpa.hibernate.ddl-auto=update
 spring.jpa.database-platform=org.hibernate.dialect.PostgreSQLDialect
 ```
 
-Set `DATABASE_URL` to the internal connection string you copied. Because both the database and the web service live inside Render's network, using the internal URL keeps the connection fast and private — traffic never leaves Render's data center. Never paste real credentials into your source code or commit them to Git; environment variables exist precisely so secrets stay out of your repository.work, the internal URL is faster and free of egress charges. Redeploy, and your data now survives restarts.
+Set `DATABASE_URL` to the internal connection string you copied. Because both the database and the web service live inside Render's network, using the internal URL keeps the connection fast and private traffic never leaves Render's data center. Never paste real credentials into your source code or commit them to Git; environment variables exist precisely so secrets stay out of your repository.work, the internal URL is faster and free of egress charges. Redeploy, and your data now survives restarts.
 
 <Callout type="warning" title="Guard your connection string">
 Your database URL contains a username and password. Never commit it to Git or paste it into a public place. Always inject it through Render's environment variables, which are encrypted at rest.
@@ -183,6 +183,6 @@ This exposes `/actuator/health`, which returns `{"status":"UP"}` when everything
 
 ## Where to go next
 
-You now have a Spring Boot API running in the cloud with a real database, HTTPS, and automatic deploys — all for zero cost. That's a professional setup, and it's the same pattern used by teams paying thousands a month; they just run bigger instances.
+You now have a Spring Boot API running in the cloud with a real database, HTTPS, and automatic deploys  all for zero cost. That's a professional setup, and it's the same pattern used by teams paying thousands a month; they just run bigger instances.
 
 Next, deploy your React front end to Vercel or Netlify (both free), point it at your new Render API URL, and you'll have a complete full-stack app live on the internet. If you haven't built the API yet, start with [How I Built a Full-Stack App with React and Spring Boot](/blog/react-spring-boot-tutorial).
