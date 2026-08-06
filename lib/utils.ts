@@ -3,7 +3,7 @@ import { format, parseISO } from "date-fns";
 /** Site-wide constants used for SEO, canonical URLs, and OG metadata. */
 export const siteConfig = {
   name: "StackFromZero",
-  title: "StackFromZero — Learn React & Spring Boot from Zero",
+  title: "StackFromZero Learn React & Spring Boot from Zero",
   description:
     "Practical React and Spring Boot tutorials for African students and junior developers. Build real full-stack apps, deploy on a budget, and level up your career.",
   url: process.env.NEXT_PUBLIC_SITE_URL || "https://stackfromzero.com",

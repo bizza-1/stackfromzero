@@ -1,0 +1,296 @@
+---
+title: "Deploy React 19 + Spring Boot for $0 in 2026: The Complete Stack"
+description: "Free tiers changed in 2026. Cold starts kill UX. Database limits expire. Here is the exact deployment setup I use to host a React 19 frontend and Spring Boot backend for absolutely zero dollars."
+date: "2026-08-08"
+tags: ["Deployment", "React", "Spring Boot", "Vercel", "Render", "DevOps"]
+series: "Full Stack Foundations"
+seriesOrder: 8
+image: "/images/covers/deploy-free-2026-hero.png"
+published: true
+---
+
+Skip to content
+
+[Home](/) &gt; [Deployment](/tags/deployment) &gt; Deploy React 19 Spring Boot Free
+
+# Deploy React 19 + Spring Boot for $0 in 2026: The Complete Stack
+
+In January 2026, I deployed my first full stack app. Vercel for the frontend. Render for the backend. Supabase for the database. Total cost: $0. The app worked. I was proud. Then my database hit the 500MB limit in week three. My Render instance took 45 seconds to wake up from cold start. My Vercel function timed out on a large API response. Free tier deployment is not as simple as clicking deploy.
+
+I spent three weeks testing every free platform. Railway. Fly.io. Render. Vercel. Netlify. Supabase. PlanetScale. I hit every limit, every timeout, every hidden restriction. This article is the setup that actually works in 2026. Not the theoretical setup. The one running StackFromZero right now.
+
+By: Jafar
+16 min
+Last updated: August 8, 2026
+
+![Deployment architecture diagram showing Vercel Render and Supabase](/images/covers/deploy-free-2026-hero.png)
+
+## Key Takeaways
+
+- **Render free tier still works for Spring Boot** but cold starts take 30 to 60 seconds. Use a cron job to keep it awake.
+- **Vercel Hobby tier handles React 19 Server Components perfectly** but has a 10 second function timeout.
+- **Supabase free tier gives you 500MB database space.** After that, you pay or you lose data. Monitor closely.
+- **Always use environment variables for API URLs.** Never hardcode localhost or production URLs in your frontend.
+- **CORS will break your app.** Configure it on the Spring Boot side before you deploy anything.
+
+<Callout type="warning" title="The free tier reality">
+Free tiers are free because they have limits. If your app grows, you will need to pay. But for a student portfolio, a blog, or a side project, this setup handles 1,000 users a day without spending a dollar. Know the limits. Plan the upgrade path. Do not treat free as forever.
+</Callout>
+
+## 1. The architecture overview
+
+Here is exactly what we are building:
+User Browser
+|
+|---> Vercel (React 19 frontend, static + server components)
+|
+|---> Render (Spring Boot API, always-on cron job)
+|
+|---> Supabase (PostgreSQL database, 500MB free)
+```text
+Three services. Zero dollars. One working full stack app.
+```
+
+| Service | Role | Free Tier Limit | Our Strategy |
+|---------|------|-----------------|--------------|
+| Vercel | React 19 hosting | 100GB bandwidth, 6,000 build minutes | Static export for blog, serverless for dynamic pages |
+| Render | Spring Boot API | 512MB RAM, sleeps after 15 min | Cron job pings /health every 10 minutes |
+| Supabase | PostgreSQL database | 500MB storage, 2GB bandwidth | Monitor size, archive old logs monthly |
+
+<Callout type="info" title="Why not Railway or Fly.io">
+Railway removed their free tier in late 2025. Fly.io free tier requires a credit card and has stricter limits. Render is the last major platform with a genuine no-credit-card free tier for Java apps. Use it while it lasts.
+</Callout>
+
+## 2. Prepare your Spring Boot app for deployment
+
+Before deploying, your Spring Boot app needs three changes.
+
+### Change 1: Use environment variables for secrets
+
+Never commit database URLs or API keys to GitHub. Use application.properties with placeholders:
+
+```properties
+# application.properties
+spring.datasource.url=${DATABASE_URL:jdbc:postgresql://localhost:5432/mydb}
+spring.datasource.username=${DATABASE_USER:postgres}
+spring.datasource.password=${DATABASE_PASSWORD:password}
+server.port=${PORT:8080}
+
+# CORS allowed origins
+cors.allowed-origins=${FRONTEND_URL:http://localhost:3000}
+```
+
+The `\${VAR:default}` syntax means: use the environment variable if it exists, otherwise use the default. This lets your app run locally without changing anything.
+
+### Change 2: Configure CORS properly
+Your React app on Vercel will make requests to your Render backend. Browsers block cross-origin requests unless you allow them.
+Create a CORS configuration class:
+```java
+package com.example.demo.config;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.web.servlet.config.annotation.CorsRegistry;
+import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+
+@Configuration
+public class CorsConfig {
+
+    @Value("${cors.allowed-origins}")
+    private String allowedOrigins;
+
+    @Bean
+    public WebMvcConfigurer corsConfigurer() {
+        return new WebMvcConfigurer() {
+            @Override
+            public void addCorsMappings(CorsRegistry registry) {
+                registry.addMapping("/api/**")
+                    .allowedOrigins(allowedOrigins.split(","))
+                    .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
+                    .allowedHeaders("*")
+                    .allowCredentials(true);
+            }
+        };
+    }
+}
+```
+Change 3: Add a health check endpoint
+Render needs to know if your app is alive. Add this controller:
+```java
+package com.example.demo.controller;
+
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.util.Map;
+
+@RestController
+public class HealthController {
+
+    @GetMapping("/health")
+    public Map<String, String> health() {
+        return Map.of("status", "UP", "timestamp", java.time.Instant.now().toString());
+    }
+}
+```
+This endpoint also serves as your cron job target to prevent cold starts.
+<Callout type="tip" title="The cold start problem">
+Render free tier puts your app to sleep after 15 minutes of inactivity. The next request takes 30 to 60 seconds to wake up. A cron job hitting /health every 10 minutes keeps it alive. I use UptimeRobot free tier for this.
+</Callout>
+3. Deploy Spring Boot to Render
+Step 1: Create a Render account
+Go to render.com. Sign up with GitHub. No credit card required.
+Step 2: Create a new Web Service
+Click New + then Web Service
+Connect your GitHub repository
+Select your Spring Boot repo
+Step 3: Configure the build settings
+Table
+Setting	Value
+Name	your-app-name
+Environment	Java
+Build Command	./mvnw clean package -DskipTests
+Start Command	java -jar target/*.jar
+Plan	Free
+Step 4: Add environment variables
+In the Render dashboard, go to Environment and add:
+```bash
+DATABASE_URL=jdbc:postgresql://your-db-url:5432/postgres
+DATABASE_USER=postgres
+DATABASE_PASSWORD=your-db-password
+FRONTEND_URL=https://your-vercel-app.vercel.app
+PORT=10000
+```
+Render assigns port 10000 by default. Your app must use the PORT environment variable.
+Step 5: Deploy
+Click Create Web Service. Render builds your app from source. First deploy takes 3 to 5 minutes. Subsequent deploys take 1 to 2 minutes.
+Your API will be live at https://your-app-name.onrender.com
+Test it: https://your-app-name.onrender.com/health
+<Callout type="warning" title="The Java build memory limit">
+Render free tier gives 512MB RAM. Spring Boot builds can exceed this if you include unnecessary dependencies. Remove Spring Boot DevTools from your production pom.xml. It saves 50MB of RAM.
+</Callout>
+4. Set up Supabase PostgreSQL
+Step 1: Create a Supabase project
+Go to supabase.com. Sign up with GitHub. Create a new project. Free tier is genuinely free.
+Step 2: Get your connection string
+In Supabase dashboard:
+Go to Settings > Database
+Find Connection string > URI
+Copy the PostgreSQL URL
+It looks like:
+```text
+postgresql://postgres:[YOUR-PASSWORD]@db.abcdefgh123456.supabase.co:5432/postgres
+```
+Step 3: Add to Render environment variables
+```bash
+DATABASE_URL=postgresql://postgres:[PASSWORD]@db.abcdefgh123456.supabase.co:5432/postgres?sslmode=require
+DATABASE_USER=postgres
+DATABASE_PASSWORD=[PASSWORD]
+```
+The ?sslmode=require is mandatory. Supabase rejects non-SSL connections.
+<Callout type="info" title="The 500MB limit">
+Supabase free tier gives 500MB database storage. For a blog or small app, this lasts 6 to 12 months. For a fintech app with transaction logs, it lasts 2 months. Set up a monthly cleanup job or upgrade to Pro ($25/month) when you hit 400MB.
+</Callout>
+5. Deploy React 19 to Vercel
+Step 1: Prepare your Next.js app
+In your Next.js project, create a .env.production file:
+```bash
+NEXT_PUBLIC_API_URL=https://your-app-name.onrender.com/api
+```
+Never put secrets in NEXT_PUBLIC_ variables. They are exposed to the browser. Only use this for public API URLs.
+Step 2: Update your API client
+Create a config file that uses the environment variable:
+```ts
+// lib/api.ts
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api';
+
+export async function fetchPosts() {
+    const res = await fetch(`${API_URL}/posts`, {
+        next: { revalidate: 60 } // Revalidate every 60 seconds
+    });
+    if (!res.ok) throw new Error('Failed to fetch posts');
+    return res.json();
+}
+```
+Step 3: Push to GitHub
+```bash
+git add .
+git commit -m "Prepare for Vercel deployment"
+git push
+```
+Step 4: Connect to Vercel
+Go to vercel.com
+Sign up with GitHub
+Click Add New Project
+Import your React repo
+Framework preset: Next.js
+Click Deploy
+Vercel builds and deploys in under 2 minutes.
+Your app will be live at https://your-project.vercel.app
+<Callout type="tip" title="Server Components on Vercel">
+Vercel handles React 19 Server Components natively. Static pages are pre-rendered at build time. Dynamic pages use serverless functions. You do not need to configure anything. It just works.
+</Callout>
+6. Connect frontend to backend
+This is where most deployments fail. The frontend cannot reach the backend. Here is the checklist:
+Table
+Check	How to Verify
+CORS configured	Open browser dev tools. Look for CORS errors in console.
+API URL correct	Check Network tab. Is the request going to Render or localhost?
+HTTPS only	Mixed content blocks HTTP requests from HTTPS pages. Use https:// for your API.
+Preflight passes	OPTIONS requests must return 200. Check your CORS config allows OPTIONS.
+Test from your deployed frontend:
+Open https://your-project.vercel.app
+Open browser dev tools (F12)
+Trigger an API call
+Check the Network tab
+If you see a CORS error, your Spring Boot CORS config is wrong. If you see a 404, your API URL is wrong. If you see nothing, your frontend is not making the request at all.
+<Callout type="warning" title="The localhost trap">
+I spent 2 hours debugging why my deployed frontend could not reach my backend. The issue: I had hardcoded `http://localhost:8080/api` in one fetch call. It worked locally. It failed in production. Always use environment variables.
+</Callout>
+7. Keep your Render app awake
+Create a free UptimeRobot account. Add a new monitor:
+Table
+Setting	Value
+Monitor Type	HTTP(s)
+Friendly Name	Spring Boot Health Check
+URL	https://your-app-name.onrender.com/health
+Monitoring Interval	5 minutes
+UptimeRobot pings your app every 5 minutes. Render never sleeps. Response time stays under 500ms instead of 45 seconds.
+<Callout type="info" title="The ethical question">
+Some developers call this abusing the free tier. I call it using the free tier as designed. Render knows about this. They allow it. If they wanted to stop it, they would. When your app grows, upgrade to paid. Until then, keep it awake.
+</Callout>
+8. The complete deployment checklist
+Before announcing your app to the world:
+[ ] Spring Boot builds successfully with ./mvnw clean package
+[ ] Health endpoint returns 200 at /health
+[ ] Database connects with SSL mode required
+[ ] CORS allows your Vercel domain
+[ ] Frontend uses NEXT_PUBLIC_API_URL not localhost
+[ ] No secrets in frontend code
+[ ] UptimeRobot monitor is active
+[ ] You tested the full flow on the live URL
+[ ] You tested on mobile data (2G/3G)
+[ ] You have a backup of your database
+<Callout type="tip" title="The 2G test">
+Open your deployed app on your phone. Turn off WiFi. Use mobile data. If it loads in under 5 seconds on 3G, it is ready for African users. If it takes 15 seconds, optimize your images and API responses before sharing.
+</Callout>
+9. When to upgrade from free
+Free tiers are training wheels. Know when to remove them.
+Table
+Signal	Current Cost	Upgrade To	New Cost
+Database hits 400MB	$0	Supabase Pro	$25/month
+Render cold starts annoy users	$0	Render Starter	$7/month
+Vercel bandwidth exceeds 100GB	$0	Vercel Pro	$20/month
+You need custom domain	$0	Namecheap + Vercel	$12/year
+You have 1,000+ daily users	$0-52/month	Full production stack	$50-100/month
+My rule: when my app makes $100/month, I spend $50/month on infrastructure. Until then, free tiers are a competitive advantage.
+Where to go next
+You now have a React 19 frontend on Vercel, a Spring Boot API on Render, and a PostgreSQL database on Supabase. All connected. All working. All free.
+Next steps:
+Add custom domain with Cloudflare
+Set up GitHub Actions for CI/CD so deploys happen automatically on every push
+Add Sentry for error monitoring
+Set up Google Analytics to track your users
+If you have not built the API yet, start with How I Built a Full Stack App with React and Spring Boot.
+If you want to accept payments, follow I Built an M-Pesa Payment Flow with React and Spring Boot.

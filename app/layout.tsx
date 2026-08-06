@@ -10,6 +10,7 @@ import "./globals.css";
 
 import Navbar from "@/components/ui/Navbar";
 import Footer from "@/components/ui/Footer";
+import CookieConsent from "@/components/ui/CookieConsent";
 import { PageTransition, BackToTop } from "@/components/ui/animated";
 import { siteConfig } from "@/lib/utils";
 
@@ -99,6 +100,8 @@ export default function RootLayout({
         </PageTransition>
         <Footer />
         <BackToTop />
+
+        <CookieConsent />
 
         <script
           type="application/ld+json"
