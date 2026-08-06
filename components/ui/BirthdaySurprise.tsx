@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useRef, useState } from "react";
 import { gsap, useGSAP, EASE, prefersReducedMotion } from "@/lib/animation/gsap";
@@ -158,6 +159,16 @@ export default function BirthdaySurprise() {
               <span className="sparkle sparkle-2" />
               <span className="sparkle sparkle-3" />
               <span className="sparkle sparkle-4" />
+            </div>
+            <div className="birthday-photo-wrapper birthday-animate mb-4 mx-auto">
+              <Image
+                src="/images/birthday-photo.jpg"
+                alt="Birthday portrait"
+                width={180}
+                height={180}
+                className="birthday-photo"
+                unoptimized
+              />
             </div>
             <div className="mb-4 birthday-animate">
               <span className="badge rounded-pill bg-danger bg-opacity-15 text-danger fs-6 px-4 py-2">
