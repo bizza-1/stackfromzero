@@ -10,6 +10,7 @@ export default function BirthdaySurprise() {
   const cardRef = useRef<HTMLDivElement>(null);
   const messageRef = useRef<HTMLDivElement>(null);
   const [showMessage, setShowMessage] = useState(false);
+  const [photoSrc, setPhotoSrc] = useState("/images/birthday-photo.jpg");
   const [dinnerDecision, setDinnerDecision] = useState<"yes" | "no" | null>(null);
   const [foodOption, setFoodOption] = useState<"rice" | "icecream" | null>(null);
   const [dinnerSubmitted, setDinnerSubmitted] = useState(false);
@@ -162,7 +163,7 @@ export default function BirthdaySurprise() {
             </div>
             <div className="birthday-photo-wrapper birthday-animate mb-4 mx-auto">
               <Image
-                src="/images/birthday-photo.jpg"
+                src="/images/covers/birthday.jpg"
                 alt="Birthday portrait"
                 width={180}
                 height={180}
