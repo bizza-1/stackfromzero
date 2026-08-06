@@ -1,12 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { gsap, useGSAP, EASE, prefersReducedMotion } from "@/lib/animation/gsap";
 
 export default function BirthdaySurprise() {
   const sectionRef = useRef<HTMLElement>(null);
   const cardRef = useRef<HTMLDivElement>(null);
+  const messageRef = useRef<HTMLDivElement>(null);
+  const [showMessage, setShowMessage] = useState(false);
+  const [dinnerDecision, setDinnerDecision] = useState<"yes" | "no" | null>(null);
+  const [foodOption, setFoodOption] = useState<"rice" | "icecream" | null>(null);
+  const [dinnerSubmitted, setDinnerSubmitted] = useState(false);
 
   useGSAP(
     () => {
@@ -104,6 +109,34 @@ export default function BirthdaySurprise() {
     { scope: sectionRef, dependencies: [] }
   );
 
+  useGSAP(
+    () => {
+      if (prefersReducedMotion() || !messageRef.current || !showMessage) return;
+
+      const message = messageRef.current;
+      const animation = gsap.timeline();
+
+      animation.set(message, { visibility: "visible" });
+      animation.fromTo(
+        message,
+        { autoAlpha: 0, y: 30, scale: 0.97 },
+        { autoAlpha: 1, y: 0, scale: 1, duration: 1.1, ease: EASE.out }
+      );
+      animation.from(
+        message.querySelectorAll<HTMLElement>(".love-line"),
+        {
+          opacity: 0,
+          y: 20,
+          stagger: 0.08,
+          duration: 0.5,
+          ease: EASE.out,
+        },
+        "-=0.9"
+      );
+    },
+    { scope: messageRef, dependencies: [showMessage, dinnerSubmitted] }
+  );
+
   return (
     <section ref={sectionRef} className="birthday-surprise min-vh-100 d-flex align-items-center py-5 position-relative overflow-hidden">
       <div className="birthday-deco birthday-deco-1" />
@@ -148,11 +181,121 @@ export default function BirthdaySurprise() {
               <Link href="/" className="btn btn-outline-light btn-lg px-4 birthday-cta">
                 Back to home
               </Link>
-              <a href="#" className="btn btn-primary btn-lg px-4 text-white birthday-cta">
+              <button
+                type="button"
+                className="btn btn-primary btn-lg px-4 text-white birthday-cta"
+                onClick={() => setShowMessage(true)}
+              >
                 Celebrate together 🥂
-              </a>
+              </button>
             </div>
           </div>
+        </div>
+        <div
+          ref={messageRef}
+          className="birthday-love-note mt-5 mx-auto text-white px-4 py-5 rounded-4"
+          style={{ maxWidth: 900, visibility: "hidden" }}
+        >
+          <div className="love-line mb-4">
+            Sometimes I sit back and wonder what I did to deserve someone like you. You came into my life with a heart so full of love, care, and kindness. You never like seeing me hungry. Even when you don&apos;t have much, you still find a way to make sure I&apos;m okay. That kind of love is rare, and I pray I never take it for granted.
+          </div>
+          <div className="love-line mb-4">
+            Thank you for every cake you&apos;ve baked with love, every small chop we&apos;ve made together, every warm hug that made my worries disappear, every kiss that reminded me I wasn&apos;t alone, and every moment we&apos;ve shared. Those moments may seem ordinary to the world, but to me, they are priceless memories that I will carry in my heart forever.
+          </div>
+          <div className="love-line mb-4">
+            You have seen me at my best and at my weakest, yet you never stopped believing in me. Your support has given me strength on days when I felt like giving up. You may not even realize how much you&apos;ve changed my life just by being there.
+          </div>
+          <div className="love-line mb-4">
+            Yes... sometimes you behave like a little witch. <span className="text-warning">😂</span> You can be stubborn, dramatic, and know exactly how to get on my nerves. But if I had the chance to choose again, I would still choose <strong>my own witch</strong> every single time. Because behind all that stubbornness is the most beautiful soul I know.
+          </div>
+          <div className="love-line mb-4">
+            I don&apos;t know what the future holds, but I know one thing: meeting you is one of the best things that has ever happened to me. You&apos;ve shown me what genuine love, care, and companionship feel like. My prayer is that I never become the reason tears fall from your eyes except tears of joy.
+          </div>
+          <div className="love-line mb-4">
+            On your birthday, I pray that God surrounds you with His endless love and protection. May He bless your beautiful heart, your dreams, your hands, and everything you do. May He reward you for every sacrifice you&apos;ve made, even the ones nobody knows about. May your smile never fade, your peace never be stolen, and your joy never run dry.
+          </div>
+          <div className="love-line mb-4">
+            If I haven&apos;t said it enough, let me say it today:
+            <br />
+            <strong>Thank you for loving me.<br />
+            Thank you for feeding me.<br />
+            Thank you for believing in me.<br />
+            Thank you for staying.</strong>
+          </div>
+          <div className="love-line mb-4">
+            I promise to keep working towards becoming the man you can always be proud of. You deserve a love that is patient, intentional, and unwavering, and every day I want to love you better than the day before.
+          </div>
+          <div className="love-line mb-4">
+            I love you more deeply than these words can express, and I hope this birthday reminds you of how incredibly precious you are not just to me, but to everyone whose life you touch.
+          </div>
+          <div className="love-line mb-0">
+            Happy Birthday, my love, my peace, my favorite baker, my biggest supporter... and forever, my favorite &quot;little witch.&quot; ❤️
+          </div>
+          <div className="love-line mt-4 fw-semibold">I love you. Always.</div>
+          <div className="love-line mt-5">
+            <div className="fw-semibold mb-3">Would you like dinner as a birthday gift?</div>
+            <div className="d-flex flex-wrap justify-content-center gap-3">
+              <button
+                type="button"
+                className={`btn btn-outline-light btn-sm ${dinnerDecision === "yes" ? "active" : ""}`}
+                onClick={() => {
+                  setDinnerDecision("yes");
+                  setDinnerSubmitted(false);
+                }}
+              >
+                Yes
+              </button>
+              <button
+                type="button"
+                className={`btn btn-outline-light btn-sm ${dinnerDecision === "no" ? "active" : ""}`}
+                onClick={() => {
+                  setDinnerDecision("no");
+                  setFoodOption(null);
+                  setDinnerSubmitted(false);
+                }}
+              >
+                No
+              </button>
+            </div>
+          </div>
+          {dinnerDecision === "yes" && (
+            <div className="love-line mt-4">
+              <div className="fw-semibold mb-3">If yes, what food would you love to eat?</div>
+              <div className="d-flex flex-wrap justify-content-center gap-3">
+                <button
+                  type="button"
+                  className={`btn btn-outline-light btn-sm ${foodOption === "rice" ? "active" : ""}`}
+                  onClick={() => setFoodOption("rice")}
+                >
+                  Rice and chicken
+                </button>
+                <button
+                  type="button"
+                  className={`btn btn-outline-light btn-sm ${foodOption === "icecream" ? "active" : ""}`}
+                  onClick={() => setFoodOption("icecream")}
+                >
+                  Ice cream and chicken
+                </button>
+              </div>
+            </div>
+          )}
+          {dinnerDecision && (
+            <div className="love-line mt-4 text-center">
+              <button
+                type="button"
+                className="btn btn-success btn-lg px-4"
+                onClick={() => setDinnerSubmitted(true)}
+                disabled={dinnerDecision === "yes" && !foodOption}
+              >
+                Submit dinner choice
+              </button>
+            </div>
+          )}
+          {dinnerSubmitted && (
+            <div className="love-line mt-4 p-3 rounded-3 border border-success text-success bg-success bg-opacity-10">
+              Dinner is fixed{dinnerDecision === "yes" && foodOption ? `: ${foodOption === "rice" ? "Rice and chicken" : "Ice cream and chicken"}.` : "."}
+            </div>
+          )}
         </div>
       </div>
     </section>
