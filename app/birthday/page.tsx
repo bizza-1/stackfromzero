@@ -28,7 +28,7 @@ export default function BirthdayPage() {
                 You&apos;ve stood by me through so much, and your love and support mean more to me than words can express. I truly appreciate everything you do, even the little things that often go unnoticed.
               </p>
               <p className="mb-0">
-                Now, I have to say this... sometimes you behave like a little witch <span className="text-warning">😅</span>, but you&apos;re my favorite witch, and I wouldn&apos;t trade you for anyone else.
+                Now, I have to say this.... sometimes you behave like a little witch <span className="text-warning">😅</span>, but you&apos;re my favorite witch, and I wouldn&apos;t trade you for anyone else.
               </p>
             </div>
             <p className="text-secondary-custom mb-4" style={{ maxWidth: 680, margin: "0 auto" }}>
