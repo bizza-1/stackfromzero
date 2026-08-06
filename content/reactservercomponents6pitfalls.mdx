@@ -244,7 +244,7 @@ export default async function ProductPage({ params }) {
     </div>
   );
 }
-```}
+```
 Why this is better:
 Next.js streams the HTML as each promise resolves. The user sees the product name immediately. The reviews appear when they load. The related products appear last. No waiting for the slowest request.
 The mistake I made:
