@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import ArticleGrid from "@/components/ui/ArticleGrid";
 import Pagination from "@/components/ui/Pagination";
+import AdsenseAd from "@/components/ui/AdsenseAd";
 import { AnimatedText } from "@/components/ui/animated";
 import { getAllArticles } from "@/lib/mdx";
 import { POSTS_PER_PAGE } from "@/lib/utils";
@@ -40,6 +41,10 @@ export default function BlogPage({ searchParams }: BlogPageProps) {
           and shipping full-stack apps.
         </p>
       </header>
+
+      <div className="mb-4">
+        <AdsenseAd className="mx-auto" style={{ maxWidth: 728 }} slotId="1234567890" />
+      </div>
 
       <ArticleGrid articles={pageArticles} />
 

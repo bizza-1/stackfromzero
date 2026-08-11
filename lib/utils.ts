@@ -10,7 +10,7 @@ export const siteConfig = {
   email: "Admin@stackfromzero.com",
   author: {
     name: "frontenddude",
-    bio: "Full-stack engineer teaching the stack I wish I had when I started.",
+    bio: "Fullstack engineer teaching the stack I wish I had when I started.",
     twitter: "@frontenddude",
     github: "bizza-1/stackfromzero",
     linkedin: "https://in.linkedin.com/company/stackzero",

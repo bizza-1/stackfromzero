@@ -111,6 +111,13 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }}
         />
 
+        <Script
+          async
+          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-0000000000000000"
+          strategy="afterInteractive"
+          crossOrigin="anonymous"
+        />
+
         {/* Bootstrap JS bundle — only needed for interactive components (dropdown, modal, collapse). */}
         <Script
           src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"

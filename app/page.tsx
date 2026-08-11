@@ -2,6 +2,7 @@ import Link from "next/link";
 import HeroSection from "@/components/ui/HeroSection";
 import ArticleGrid from "@/components/ui/ArticleGrid";
 import NewsletterForm from "@/components/ui/NewsletterForm";
+import AdsenseAd from "@/components/ui/AdsenseAd";
 import { AnimatedText, AnimatedSection } from "@/components/ui/animated";
 import { getAllArticles } from "@/lib/mdx";
 
@@ -28,6 +29,10 @@ export default function HomePage() {
         </div>
 
         <ArticleGrid articles={featured} />
+      </section>
+
+      <section className="container pb-4">
+        <AdsenseAd className="mx-auto" style={{ maxWidth: 728 }} slotId="1234567890" />
       </section>
 
       {/* What you'll learn */}

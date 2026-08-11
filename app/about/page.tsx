@@ -7,7 +7,7 @@ import { siteConfig } from "@/lib/utils";
 export const metadata: Metadata = {
   title: "About",
   description:
-    "The story behind StackFromZero and why it exists — teaching React and Spring Boot to African students and junior developers.",
+    "The story behind StackFromZero and why it exists  teaching React and Spring Boot to African students and junior developers.",
   alternates: { canonical: "/about" },
 };
 
@@ -33,7 +33,7 @@ export default function AboutPage() {
           <div className="text-center mb-5">
             <AuthorPhoto className="mb-3">
               <Image
-                src="/images/image-download.png"
+                src="/images/covers/author.jpg"
                 alt={siteConfig.author.name}
                 width={140}
                 height={140}
@@ -75,7 +75,7 @@ export default function AboutPage() {
               I learned to code with a patchy internet connection, a second-hand
               laptop, and a stack of browser tabs that never quite added up to a
               real project. The tutorials I found either assumed I already knew
-              everything, or stopped right before the interesting part — actually
+              everything, or stopped right before the interesting part  actually
               shipping something people could use.
             </p>
             <p>
@@ -106,7 +106,7 @@ export default function AboutPage() {
             <h2>Let&apos;s build together</h2>
             <p>
               The best way to keep up is the{" "}
-              <Link href="/newsletter">newsletter</Link> — I send new tutorials as
+              <Link href="/newsletter">newsletter</Link>  I send new tutorials as
               soon as they&apos;re published. Or jump straight into the{" "}
               <Link href="/blog">blog</Link> and start building.
             </p>
