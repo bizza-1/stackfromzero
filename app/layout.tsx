@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
+import { Lato } from "next/font/google";
 import Script from "next/script";
 
 // Compiled Bootstrap theme (SCSS), highlight.js theme, then our globals.
@@ -14,10 +14,11 @@ import CookieConsent from "@/components/ui/CookieConsent";
 import { PageTransition, BackToTop } from "@/components/ui/animated";
 import { siteConfig } from "@/lib/utils";
 
-const inter = Inter({
+const lato = Lato({
   subsets: ["latin"],
   display: "swap",
-  variable: "--font-inter",
+  weight: ["400", "700", "900"],
+  variable: "--font-lato",
 });
 
 export const metadata: Metadata = {
@@ -79,6 +80,7 @@ const organizationSchema = {
   logo: `${siteConfig.url}/images/og-default.svg`,
   sameAs: [
     `https://github.com/${siteConfig.author.github}`,
+    siteConfig.author.linkedin,
     `https://twitter.com/${siteConfig.author.twitter.replace("@", "")}`,
   ],
 };
@@ -89,8 +91,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" data-bs-theme="dark" className={inter.variable}>
-      <body style={{ fontFamily: "var(--font-inter), system-ui, sans-serif" }}>
+    <html lang="en" data-bs-theme="dark" className={lato.variable}>
+      <body style={{ fontFamily: "var(--font-lato), system-ui, sans-serif" }}>
         <a href="#main-content" className="skip-link">
           Skip to content
         </a>

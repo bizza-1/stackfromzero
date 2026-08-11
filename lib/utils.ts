@@ -12,8 +12,8 @@ export const siteConfig = {
     name: "Odelade jafar",
     bio: "Full-stack engineer teaching the stack I wish I had when I started.",
     twitter: "@stackfromzero",
-    github: "stackfromzero",
-    linkedin: "stackfromzero",
+    github: "bizza-1/stackfromzero",
+    linkedin: "https://in.linkedin.com/company/stackzero",
   },
   ogImage: "/images/og-default.svg",
 } as const;

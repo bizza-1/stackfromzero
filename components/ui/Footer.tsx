@@ -15,7 +15,7 @@ const socials = [
   {
     label: "LinkedIn",
     icon: "bi-linkedin",
-    href: `https://linkedin.com/in/${siteConfig.author.linkedin}`,
+    href: siteConfig.author.linkedin,
   },
 ];
 
