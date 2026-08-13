@@ -94,7 +94,7 @@ $body-tertiary-bg:      #1e293b;
 // Force dark color scheme
 html,
 body {
-  color-scheme: dark;
+  color-scheme: light;
   scroll-behavior: smooth;
   scroll-padding-top: 90px; // offset for sticky navbar when jumping to anchors
 }
@@ -129,6 +129,18 @@ body {
 
   &:hover .article-card-cover img {
     transform: scale(1.05);
+  }
+}
+
+// Tools hub: clickable cards lift and highlight on hover.
+.tool-card {
+  transition: border-color 0.2s ease, transform 0.2s ease,
+    box-shadow 0.2s ease;
+
+  &:hover {
+    border-color: $primary !important;
+    transform: translateY(-4px);
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
   }
 }
 
@@ -263,8 +275,8 @@ pre {
 
 .bg-hero {
   position: relative;
-  isolation: isolate; // keep the ::before layers behind hero content
-  // Emerald + sky glows sit on top of the photo for brand colour.
+  isolation: isolate;
+  overflow: hidden;
   background: radial-gradient(
       ellipse 80% 50% at 50% -20%,
       rgba(16, 185, 129, 0.15),
@@ -276,19 +288,16 @@ pre {
       transparent
     );
 
-  // Photo background layer.
-  &::before {
-    content: "";
+  .hero-video {
     position: absolute;
     inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
     z-index: -2;
-    background-image: url("/images/hero-2.jpg");
-    background-size: cover;
-    background-position: center;
-    background-repeat: no-repeat;
+    pointer-events: none;
   }
 
-  // Dark overlay so text + gradient text stay legible over the photo.
   &::after {
     content: "";
     position: absolute;
@@ -296,11 +305,91 @@ pre {
     z-index: -1;
     background: linear-gradient(
       180deg,
-      rgba(15, 23, 42, 0.82) 0%,
-      rgba(15, 23, 42, 0.88) 60%,
+      rgba(15, 23, 42, 0.8) 0%,
+      rgba(15, 23, 42, 0.9) 60%,
       rgba(15, 23, 42, 1) 100%
     );
   }
+
+  .hero-badge {
+    letter-spacing: 0.05em;
+  }
+
+  .hero-subtitle {
+    max-width: 680px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+}
+
+// Hero search control — positioned top-right on large screens, stacked on small screens.
+.hero-search {
+  position: absolute;
+  top: 1.25rem;
+  right: 1.5rem;
+  z-index: 3;
+  background: rgba(0, 0, 0, 0.18);
+  padding: 0.35rem;
+  border-radius: 999px;
+  backdrop-filter: blur(6px);
+}
+
+.hero-search .form-control-search {
+  min-width: 220px;
+  max-width: 320px;
+  background: transparent;
+  border: none;
+  color: #e9ecef;
+}
+
+.hero-search .form-control-search:focus {
+  box-shadow: none;
+  outline: none;
+}
+
+.btn-search {
+  background: #00b37e; /* brand green */
+  border: none;
+  color: #04111a;
+}
+
+@media (max-width: 767px) {
+  .hero-search {
+    position: static;
+    margin: 0 auto 1rem auto;
+    display: flex;
+    width: calc(100% - 2rem);
+    max-width: 640px;
+  }
+  .hero-search .form-control-search {
+    min-width: 0;
+    width: 100%;
+  }
+}
+
+// Standalone search control (e.g. the /search results page) — the same pill
+// look as the hero, but placed in normal document flow.
+.site-search {
+  width: 100%;
+  max-width: 520px;
+  background: rgba(0, 0, 0, 0.18);
+  padding: 0.35rem;
+  border-radius: 999px;
+  backdrop-filter: blur(6px);
+}
+
+.site-search .form-control-search {
+  min-width: 0;
+  width: 100%;
+  background: transparent;
+  border: none;
+  color: #e9ecef;
+}
+
+.site-search .form-control-search:focus {
+  box-shadow: none;
+  outline: none;
 }
 
 // Utility surface classes

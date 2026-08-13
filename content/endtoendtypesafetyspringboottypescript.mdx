@@ -1,0 +1,546 @@
+---
+title: "End-to-End Type Safety: From Spring Boot DTOs to TypeScript Types"
+description: "Every full-stack app has a secret bug factory: the API boundary. I generate TypeScript types directly from Spring Boot DTOs using OpenAPI. Zero manual typing. Zero drift. Zero runtime surprises."
+date: "2026-08-15"
+tags: ["Type Safety", "Spring Boot", "TypeScript", "OpenAPI", "Full-Stack", "Tutorial"]
+series: "Full Stack Foundations"
+seriesOrder: 11
+image: "/images/covers/type-safety-hero.png"
+published: true
+---
+
+Skip to content
+
+[Home](/) &gt; [Type Safety](/tags/type-safety) &gt; Spring Boot to TypeScript
+
+# End-to-End Type Safety: From Spring Boot DTOs to TypeScript Types
+
+I deployed a feature last month that looked perfect in development. The Spring Boot API returned a user object with an `age` field. My React frontend consumed it and displayed a profile card. Then a user registered with a birthdate instead of an age. My frontend expected a number. The server sent a string. The page crashed with a white screen and a TypeError that did not show up in any test.
+
+This is the API boundary bug. It is the most common, most expensive, and most invisible bug in full-stack development. The backend team changes a field. The frontend team does not know. TypeScript on the frontend gives you false confidence because the types are hand-written guesses, not guarantees.
+
+I fixed it by generating TypeScript types directly from my Spring Boot DTOs. One source of truth. Automatic synchronization. If the DTO changes, the build fails before the bug reaches production. This article is exactly how to set it up.
+
+By: Jafar
+16 min
+Last updated: August 15, 2026
+
+![Type safety flow from Spring Boot DTO to TypeScript interface](/images/covers/type-safety-hero.png)
+
+## Key Takeaways
+
+- **Hand-written TypeScript types are lies waiting to happen.** They drift from the backend within weeks of any real project.
+- **OpenAPI is the bridge.** Spring Boot auto-generates an API spec from your controllers. TypeScript types are generated from that spec.
+- **Zod validates at runtime.** Generated types catch errors at build time. Zod catches the server sending a string where a number is expected.
+- **The setup takes 30 minutes.** The time saved on debugging pays for itself in the first week.
+- **This works with any frontend.** React, Vue, Angular, or even a mobile app. If it consumes HTTP, it needs typed contracts.
+
+<Callout type="warning" title="The false confidence trap">
+I thought TypeScript protected me. It did not. My frontend had `interface User { age: number }`. My Spring Boot DTO had `private Integer age;` but a new developer changed it to `private String birthDate;`. TypeScript had no idea. The compiler was happy. The runtime was broken.
+</Callout>
+
+## 1. The problem: why API boundaries breed bugs
+
+In a typical full-stack team, the backend defines DTOs in Java. The frontend defines types in TypeScript. These are maintained separately. They drift.
+
+| Week | Backend DTO | Frontend Type | Match? |
+|------|-------------|---------------|--------|
+| 1 | `String name, Integer age` | `name: string, age: number` | Yes |
+| 3 | Add `String email` | Frontend not updated | No |
+| 5 | Change `Integer age` to `LocalDate birthDate` | Frontend still has `age: number` | **Crash** |
+| 8 | Add `List<String> roles` | Frontend uses `string` not `string[]` | **Crash** |
+
+The crashes happen at runtime. In production. For real users. TypeScript gives you zero protection because it trusts your hand-written types.
+
+The fix is simple: generate the frontend types from the backend source of truth. Never write them by hand.
+
+<Callout type="info" title="The API contract">
+Think of OpenAPI as a legal contract between your frontend and backend. Spring Boot writes the contract automatically from your code. TypeScript reads the contract and generates the types. If either side breaks the contract, the build fails.
+</Callout>
+
+## 2. Spring Boot setup: auto-generate OpenAPI
+
+Add the SpringDoc dependency to your `pom.xml`:
+
+```xml
+<dependency>
+    <groupId>org.springdoc</groupId>
+    <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+    <version>2.6.0</version>
+</dependency>
+```
+
+**Add configuration to application.properties:**
+
+```properties
+springdoc.api-docs.path=/api-docs
+springdoc.swagger-ui.path=/swagger-ui.html
+```
+
+**Now annotate your DTOs and controllers:**
+
+```java
+package com.example.demo.dto;
+
+import io.swagger.v3.oas.annotations.media.Schema;
+
+@Schema(description = "User response payload")
+public record UserDto(
+    @Schema(description = "Unique identifier", example = "1")
+    Long id,
+    
+    @Schema(description = "Full name", example = "Jafar Abdullahi")
+    String name,
+    
+    @Schema(description = "Email address", example = "jafar@stackfromzero.com")
+    String email,
+    
+    @Schema(description = "User age in years", example = "25")
+    Integer age,
+    
+    @Schema(description = "User roles", example = "[\"USER\", \"ADMIN\"]")
+    java.util.List<String> roles
+) {}
+```
+
+**And your controller:**
+
+```java
+package com.example.demo.controller;
+
+import com.example.demo.dto.UserDto;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/users")
+@Tag(name = "User Management", description = "Operations for user management")
+public class UserController {
+
+    @GetMapping("/{id}")
+    @Operation(summary = "Get user by ID", description = "Returns a single user")
+    public UserDto getUser(@PathVariable Long id) {
+        return new UserDto(id, "Jafar", "jafar@stackfromzero.com", 25, 
+            java.util.List.of("USER", "ADMIN"));
+    }
+
+    @PostMapping
+    @Operation(summary = "Create user", description = "Creates a new user")
+    public UserDto createUser(@RequestBody UserDto user) {
+        return user;
+    }
+}
+```
+
+**Start your Spring Boot app and visit:**
+
+```
+http://localhost:8080/api-docs
+```
+
+You will see a JSON OpenAPI spec. This is your contract. It describes every endpoint, every request body, every response field, and every type.
+<Callout type="tip" title="Swagger UI for testing">
+Visit `http://localhost:8080/swagger-ui.html` to see an interactive API explorer. You can test endpoints directly from the browser. This is invaluable for frontend developers who need to understand the API without reading Java code.
+</Callout>
+
+## 3. Export the OpenAPI spec at build time
+
+You need a static JSON file to generate TypeScript types. Add the OpenAPI Maven plugin:
+
+```xml
+<plugin>
+    <groupId>org.springdoc</groupId>
+    <artifactId>springdoc-openapi-maven-plugin</artifactId>
+    <version>1.4</version>
+    <executions>
+        <execution>
+            <id>integration-test</id>
+            <goals>
+                <goal>generate</goal>
+            </goals>
+        </execution>
+    </executions>
+    <configuration>
+        <apiDocsUrl>http://localhost:8080/api-docs</apiDocsUrl>
+        <outputFileName>openapi.json</outputFileName>
+        <outputDir>${project.build.directory}</outputDir>
+    </configuration>
+</plugin>
+```
+
+**Run:**
+
+```bash
+./mvnw spring-boot:run &
+./mvnw springdoc-openapi:generate
+```
+
+This creates `target/openapi.json`. Commit this file to your repository or copy it to your frontend project.
+<Callout type="warning" title="Start the server first">
+The Maven plugin needs your Spring Boot app running to fetch the spec. Start the server in the background, then run the plugin. In CI/CD, start the server, wait for it to be ready, then generate the spec.
+</Callout>
+
+## 4. Generate TypeScript types from OpenAPI
+
+In your React frontend, install the OpenAPI TypeScript generator:
+
+```bash
+npm install -D openapi-typescript
+```
+
+**Add a script to package.json:**
+
+```json
+{
+  "scripts": {
+    "generate-types": "openapi-typescript ../backend/target/openapi.json -o src/types/api.ts"
+  }
+}
+```
+
+**Run it:**
+
+```bash
+npm run generate-types
+```
+
+This creates `src/types/api.ts` with every DTO as a TypeScript interface:
+
+```typescript
+// src/types/api.ts (auto-generated, do not edit)
+export interface components {
+  schemas: {
+    UserDto: {
+      /** @description Unique identifier */
+      id?: number;
+      /** @description Full name */
+      name?: string;
+      /** @description Email address */
+      email?: string;
+      /** @description User age in years */
+      age?: number;
+      /** @description User roles */
+      roles?: string[];
+    };
+  };
+}
+
+export interface operations {
+  // ... path parameters, request bodies, response types
+}
+```
+
+**Now import and use it:**
+
+```typescript
+import { components } from '@/types/api';
+
+type User = components['schemas']['UserDto'];
+
+function displayUser(user: User) {
+  console.log(user.name); // string | undefined
+  console.log(user.age);  // number | undefined
+}
+```
+
+<Callout type="info" title="The path to the spec">
+If your backend and frontend are in separate repositories, commit `openapi.json` to a shared repo or serve it from a URL. The generator works with both local files and remote URLs.
+</Callout>
+
+## 5. Add Zod for runtime validation
+
+Generated types catch errors at build time. But they do not protect you from a server sending malformed data at runtime. Zod fixes this.
+
+**Install Zod:**
+
+```bash
+npm install zod
+```
+
+**Create validators from your generated types:**
+
+```typescript
+// src/validators/user.ts
+import { z } from 'zod';
+import { components } from '@/types/api';
+
+// Extract the TypeScript type
+export type User = components['schemas']['UserDto'];
+
+// Create a Zod schema that matches the type exactly
+export const UserSchema = z.object({
+  id: z.number(),
+  name: z.string(),
+  email: z.string().email(),
+  age: z.number().min(0).max(150),
+  roles: z.array(z.string())
+}) satisfies z.ZodType<User>;
+
+// Infer the type from the schema (optional, but ensures they stay in sync)
+export type ValidatedUser = z.infer<typeof UserSchema>;
+```
+
+**Now validate API responses:**
+
+```typescript
+import { UserSchema } from '@/validators/user';
+
+async function fetchUser(id: number) {
+  const res = await fetch(`/api/users/${id}`);
+  const data = await res.json();
+  
+  // Runtime validation: throws if the server sends bad data
+  const user = UserSchema.parse(data);
+  
+  return user; // Now guaranteed to match the TypeScript type
+}
+```
+
+If the server sends `age: "twenty-five"` instead of `age: 25`, Zod throws immediately with a clear error message. You catch the bug in development, not in production.
+
+<Callout type="tip" title="The satisfies keyword">
+Using `satisfies z.ZodType<User>` ensures your Zod schema matches the generated TypeScript type. If a developer adds a field to the Spring Boot DTO but forgets to add it to the Zod schema, TypeScript complains. This is your safety net.
+</Callout>
+
+## 6. Type-safe API clients with TanStack Query
+
+Combine generated types with TanStack Query for a fully typed data layer:
+
+```typescript
+// src/api/users.ts
+import { useQuery, useMutation } from '@tanstack/react-query';
+import { UserSchema, type User } from '@/validators/user';
+
+const API_URL = import.meta.env.VITE_API_URL;
+
+export function useUser(id: number) {
+  return useQuery<User, Error>({
+    queryKey: ['user', id],
+    queryFn: async () => {
+      const res = await fetch(`${API_URL}/api/users/${id}`);
+      const data = await res.json();
+      return UserSchema.parse(data); // Runtime validation + type safety
+    }
+  });
+}
+
+export function useCreateUser() {
+  return useMutation<User, Error, Omit<User, 'id'>>({
+    mutationFn: async (newUser) => {
+      const res = await fetch(`${API_URL}/api/users`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newUser)
+      });
+      const data = await res.json();
+      return UserSchema.parse(data);
+    }
+  });
+}
+```
+
+**Your components are now fully typed from API to UI:**
+
+```tsx
+function UserProfile({ userId }: { userId: number }) {
+  const { data: user, isLoading, error } = useUser(userId);
+  
+  if (isLoading) return <div>Loading...</div>;
+  if (error) return <div>Error: {error.message}</div>;
+  
+  // user is guaranteed to be User type here
+  return (
+    <div>
+      <h1>{user.name}</h1>
+      <p>{user.email}</p>
+      <p>Age: {user.age}</p>
+      <ul>
+        {user.roles.map(role => <li key={role}>{role}</li>)}
+      </ul>
+    </div>
+  );
+}
+```
+
+<Callout type="warning" title="The error shape contract">
+Your Spring Boot API should return consistent error shapes. Define an `ErrorResponse` DTO and generate its TypeScript type too. This lets you type-safe your error handling across the entire app.
+</Callout>
+
+## 7. The CI/CD pipeline: keeping types in sync
+
+The real power comes from automation. When a backend developer changes a DTO, the frontend build should break immediately.
+
+**Backend pipeline:**
+
+```yaml
+# .github/workflows/backend.yml
+name: Generate OpenAPI Spec
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  generate-spec:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          
+      - name: Start Spring Boot
+        run: |
+          ./mvnw spring-boot:run &
+          sleep 30
+          
+      - name: Generate OpenAPI
+        run: ./mvnw springdoc-openapi:generate
+          
+      - name: Upload spec
+        uses: actions/upload-artifact@v4
+        with:
+          name: openapi-spec
+          path: target/openapi.json
+```
+
+**Frontend pipeline:**
+
+```yaml
+# .github/workflows/frontend.yml
+name: Type Check
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  type-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Download OpenAPI spec
+        uses: actions/download-artifact@v4
+        with:
+          name: openapi-spec
+          path: ../backend/target/
+          
+      - name: Generate TypeScript types
+        run: npm run generate-types
+          
+      - name: Type check
+        run: npx tsc --noEmit
+```
+
+If a backend developer changes age from Integer to String, the frontend `tsc --noEmit` fails. The pull request is blocked. The bug never reaches production.
+<Callout type="info" title="The monorepo advantage">
+If your frontend and backend are in the same repository, you can run both pipelines in one workflow. Generate the spec, copy it to the frontend folder, generate types, and type-check in a single job.
+</Callout>
+
+## 8. Handling optional fields and null safety
+
+Spring Boot and TypeScript handle null differently. Be explicit in your DTOs:
+
+```java
+public record UserDto(
+    @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
+    Long id,
+    
+    @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
+    String name,
+    
+    @Schema(requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    String bio  // Optional field
+) {}
+```
+
+**This generates:**
+
+```typescript
+interface UserDto {
+  id: number;        // Required
+  name: string;      // Required
+  bio?: string;      // Optional
+}
+```
+
+**Use Zod to enforce this at runtime:**
+
+```typescript
+export const UserSchema = z.object({
+  id: z.number(),
+  name: z.string(),
+  bio: z.string().optional()
+});
+```
+
+<Callout type="warning" title="The null vs undefined trap">
+Java `null` becomes TypeScript `undefined` in most generators. If your API returns explicit `null` values, configure your Zod schema to accept `z.string().nullable()` instead of `.optional()`. Match your Java behavior exactly.
+</Callout>
+
+## 9. Shared error types
+
+**Define a standard error DTO in Spring Boot:**
+
+```java
+public record ErrorResponse(
+    @Schema(description = "HTTP status code")
+    int status,
+    
+    @Schema(description = "Error message")
+    String message,
+    
+    @Schema(description = "Timestamp")
+    String timestamp,
+    
+    @Schema(description = "Request path")
+    String path
+) {}
+```
+
+**Generate the TypeScript type and use it in your API client:**
+
+```typescript
+import { components } from '@/types/api';
+
+type ApiError = components['schemas']['ErrorResponse'];
+
+async function apiFetch<T>(url: string, schema: z.ZodType<T>): Promise<T> {
+  const res = await fetch(url);
+  const data = await res.json();
+  
+  if (!res.ok) {
+    const error = data as ApiError;
+    throw new Error(`${error.status}: ${error.message}`);
+  }
+  
+  return schema.parse(data);
+}
+```
+
+Now every API error is typed. Every success response is validated. The boundary between frontend and backend is a contract, not a guess.
+
+## Conclusion
+
+You now have a type-safe full-stack pipeline. Spring Boot generates the contract. TypeScript consumes it. Zod validates it at runtime. CI/CD enforces it on every commit.
+
+**Next steps:**
+
+- Add Spring Boot 3 to 4 migration types to your pipeline
+- Build a complete full-stack app with end-to-end type safety from day one
+- Deploy with the free tier setup for 2026
+
+The days of `any` and hand-written interfaces are over. Generate everything. Validate everything. Sleep better.
+
+---
+
+**Written by Jafar**
+
+Full Stack Developer & Founder | StackFromZero
+
+Jafar builds developer education platforms and writes about React, Spring Boot, and growing a tech career from Africa. He eliminated API boundary bugs from StackFromZero by generating TypeScript types from Spring Boot DTOs.

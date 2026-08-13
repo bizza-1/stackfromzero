@@ -19,7 +19,7 @@ export default function HomePage() {
           <div>
             <h2 className="fw-bold mb-1">Latest tutorials</h2>
             <p className="text-secondary-custom mb-0">
-              Hand crafted guides to help you ship real full-stack apps.
+              Practical fullstack guides for students and junior devs.
             </p>
           </div>
           <Link href="/blog" className="btn btn-outline-primary">
@@ -52,7 +52,7 @@ export default function HomePage() {
             {
               icon: "bi-rocket-takeoff-fill",
               title: "Real deployment",
-              text: "Ship to Render, Vercel, and beyond — on a student budget.",
+              text: "Ship to Render, Vercel, and beyond  on a student budget.",
             },
           ].map((item) => (
             <div className="col-12 col-md-4" key={item.title}>
@@ -72,10 +72,10 @@ export default function HomePage() {
       <section className="container pb-6 mb-4">
         <div className="card bg-card border-custom rounded-4 overflow-hidden">
           <div className="card-body text-center p-4 p-md-5">
-            <h2 className="fw-bold mb-2">Get new tutorials in your inbox</h2>
+            <h2 className="fw-bold mb-2">Get practical tutorials in your inbox</h2>
             <p className="text-secondary-custom mb-4 mx-auto" style={{ maxWidth: "520px" }}>
-              Join the newsletter for fresh React and Spring Boot guides. No spam,
-              just practical code you can use today.
+              Weekly React + Spring Boot guides with real projects, deployment
+              notes, and student friendly explanations.
             </p>
             <div className="mx-auto" style={{ maxWidth: "560px" }}>
               <NewsletterForm />

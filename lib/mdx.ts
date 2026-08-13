@@ -21,6 +21,54 @@ export function getArticlesByTag(tagSlug: string): Article[] {
   );
 }
 
+/**
+ * Search published articles by keyword(s).
+ *
+ * Splits the query into terms and requires every term to appear somewhere in
+ * the article (AND semantics), then ranks by where the matches land — title
+ * hits count most, body hits least. Case-insensitive.
+ */
+export function searchArticles(query: string): Article[] {
+  const terms = query
+    .toLowerCase()
+    .split(/\s+/)
+    .map((t) => t.trim())
+    .filter(Boolean);
+
+  if (terms.length === 0) return [];
+
+  const scored = getAllArticles().map((article) => {
+    const fields = {
+      title: article.title.toLowerCase(),
+      tags: article.tags.join(" ").toLowerCase(),
+      series: (article.series ?? "").toLowerCase(),
+      description: article.description.toLowerCase(),
+      body: article.body.raw.toLowerCase(),
+    };
+    const combined = Object.values(fields).join(" ");
+
+    // Every term must appear somewhere for the article to be a match.
+    if (!terms.every((term) => combined.includes(term))) {
+      return { article, score: 0 };
+    }
+
+    let score = 0;
+    for (const term of terms) {
+      if (fields.title.includes(term)) score += 10;
+      if (fields.tags.includes(term)) score += 5;
+      if (fields.series.includes(term)) score += 4;
+      if (fields.description.includes(term)) score += 3;
+      if (fields.body.includes(term)) score += 1;
+    }
+    return { article, score };
+  });
+
+  return scored
+    .filter((s) => s.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .map((s) => s.article);
+}
+
 /** Unique tags across all published articles with their post counts. */
 export function getAllTags(): { tag: string; slug: string; count: number }[] {
   const counts = new Map<string, { tag: string; count: number }>();

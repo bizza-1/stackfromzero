@@ -1,0 +1,488 @@
+---
+title: "React 19 Breaking Changes: The 2026 Upgrade Checklist"
+description: "React 19 removed legacy APIs that have been deprecated since 2022. If your app still uses ReactDOM.render, string refs, or defaultProps on functions, it will break. Here is the exact checklist to migrate without surprises."
+date: "2026-08-16"
+tags: ["React", "React 19", "Migration", "Breaking Changes", "Checklist"]
+series: "Full Stack Foundations"
+seriesOrder: 12
+image: "/images/covers/react19-breaking-changes-hero.png"
+published: true
+---
+
+Skip to content
+
+[Home](/) &gt; [React](/tags/react) &gt; React 19 Breaking Changes
+
+# React 19 Breaking Changes: The 2026 Upgrade Checklist
+
+I upgraded a client project from React 18.3 to React 19.0 last month. The npm install finished in 30 seconds. The build failed immediately with 23 errors. ReactDOM.render was gone. String refs threw hard errors. A library we depended on used defaultProps on a function component and crashed the dev server. What should have been a 10-minute version bump became a 6-hour archaeology dig through 4-year-old code.
+
+React 19 is not backward compatible for the legacy patterns that have been printing warnings since 2022. If you ignored those warnings, they are now hard errors. This checklist is the migration path I wish I had. Print it. Check every box. Do not deploy on a Friday.
+
+By: Jafar
+12 min
+Last updated: August 16, 2026
+
+![React 19 breaking changes warning sign](/images/covers/react19-breaking-changes-hero.png)
+
+## Key Takeaways
+
+- **ReactDOM.render is deleted.** Use createRoot everywhere. Even in tests.
+- **String refs are removed.** Use React.createRef or useRef instead.
+- **defaultProps on function components is gone.** Use default parameters.
+- **useActionState replaces useFormState.** The hook was renamed during the RC phase.
+- **Test Renderer is deprecated.** Use React Testing Library or @testing-library/react.
+- **The codemod handles 80% of the work.** Run it before you touch anything manually.
+
+<Callout type="warning" title="Do not upgrade on a deadline">
+I made this mistake. A client wanted a feature shipped Monday. I thought "React 19 is stable, how hard can it be?" I was debugging string refs at 11 PM on Sunday. Upgrade when you have 2 days of buffer.
+</Callout>
+
+## 1. ReactDOM.render is deleted
+
+This is the big one. The entry point that powered React since 2013 is gone.
+
+**What breaks:**
+
+```jsx
+// React 18: This worked but showed a deprecation warning
+import ReactDOM from 'react-dom';
+
+ReactDOM.render(<App />, document.getElementById('root'));
+```
+
+**The fix:**
+
+```jsx
+// React 19: The only way to mount an app
+import { createRoot } from 'react-dom/client';
+
+const root = createRoot(document.getElementById('root'));
+root.render(<App />);
+```
+
+**Where to check:**
+
+| Location | What to look for |
+Location	What to look for
+src/index.js or src/main.jsx	The entry point file
+src/index.tsx	TypeScript entry point
+Test setup files	ReactDOM.render in test utilities
+Storybook config	.storybook/preview.js often uses render
+Legacy micro-frontends	Older apps mounted with ReactDOM.render
+The test problem:
+
+Jest tests using ReactDOM.render will fail silently or throw. Update your test setup:
+
+```jsx
+// Before
+import { render } from 'react-dom';
+import { act } from 'react-dom/test-utils';
+
+// After
+import { createRoot } from 'react-dom/client';
+
+let root;
+beforeEach(() => {
+  root = createRoot(container);
+});
+
+afterEach(() => {
+  root.unmount();
+});
+```
+
+Better yet, stop using react-dom/test-utils entirely. Use React Testing Library:
+
+```jsx
+import { render, screen } from '@testing-library/react';
+
+test('renders app', () => {
+  render(<App />);
+  expect(screen.getByText('Hello')).toBeInTheDocument();
+});
+```
+
+<Callout type="tip" title="The codemod handles this">
+Run the official React 19 codemod before doing anything manually:
+
+```bash
+npx @react-codemods/react-19
+```
+
+It converts ReactDOM.render to createRoot automatically. It also handles hydrate and unmountComponentAtNode.
+</Callout>
+
+## 2. String refs are removed
+
+String refs were deprecated in React 16.3 (2018). They are now fully removed.
+
+**What breaks:**
+
+```jsx
+// React 18: Warned in console, still worked
+class MyComponent extends React.Component {
+  render() {
+    return <input ref="myInput" />;
+  }
+  
+  componentDidMount() {
+    this.refs.myInput.focus(); // ERROR in React 19
+  }
+}
+```
+
+**The fix:**
+
+```jsx
+// React 19: Use createRef or useRef
+class MyComponent extends React.Component {
+  constructor(props) {
+    super(props);
+    this.myInput = React.createRef();
+  }
+  
+  render() {
+    return <input ref={this.myInput} />;
+  }
+  
+  componentDidMount() {
+    this.myInput.current.focus();
+  }
+}
+```
+
+**For function components:**
+
+```jsx
+function MyComponent() {
+  const myInput = useRef(null);
+  
+  useEffect(() => {
+    myInput.current.focus();
+  }, []);
+  
+  return <input ref={myInput} />;
+}
+```
+
+**The library problem:**
+
+If a third-party library uses string refs, it will crash your app. Check your dependencies:
+
+```bash
+npm ls | grep -i "ref"
+```
+
+Or search your node_modules:
+
+```bash
+grep -r "ref=\"'" node_modules/ --include="*.js" | head -20
+```
+
+Common offenders: old versions of React Bootstrap, outdated DnD libraries, and anything last updated before 2020.
+
+<Callout type="warning" title="The silent killer">
+String refs do not always crash immediately. They crash when the component mounts. This means your app might build successfully and fail only when a user navigates to a specific page. Test every route after upgrading.
+</Callout>
+
+## 3. defaultProps on function components is deleted
+
+Function components can no longer use the static defaultProps property. This was deprecated in React 18.2.
+
+**What breaks:**
+
+```jsx
+// React 18: Showed warning, still worked
+function Button({ label, size }) {
+  return <button className={size}>{label}</button>;
+}
+
+Button.defaultProps = {
+  label: 'Click me',
+  size: 'medium'
+};
+```
+
+**The fix:**
+
+Use JavaScript default parameters:
+
+```jsx
+// React 19: The only way
+function Button({ label = 'Click me', size = 'medium' }) {
+  return <button className={size}>{label}</button>;
+}
+```
+
+**Class components are unaffected:**
+
+```jsx
+// This still works in React 19
+class Button extends React.Component {
+  static defaultProps = {
+    label: 'Click me'
+  };
+  
+  render() {
+    return <button>{this.props.label}</button>;
+  }
+}
+```
+
+Only function components lost defaultProps. But since most modern code uses functions, this affects a lot of codebases.
+
+<Callout type="info" title="The codemod catches this">
+The React 19 codemod converts defaultProps to default parameters automatically. Run it before manual fixes.
+</Callout>
+
+## 4. useActionState replaces useFormState
+
+During the React 19 Release Candidate, the hook was renamed from useFormState to useActionState. If you used the RC in production, this breaks your code.
+
+**What breaks:**
+
+```jsx
+// React 19 RC: This worked in the beta
+import { useFormState } from 'react-dom';
+
+const [state, action] = useFormState(submitFn, null);
+```
+
+**The fix:**
+
+```jsx
+// React 19 stable: The hook is renamed
+import { useActionState } from 'react';
+
+const [state, action, isPending] = useActionState(submitFn, null);
+```
+
+Note two changes:
+- Import from 'react' not 'react-dom'
+- The hook returns three values, not two: [state, action, isPending]
+
+**The migration:**
+
+Search your codebase:
+
+```bash
+grep -r "useFormState" src/
+```
+
+Replace every occurrence. The API is otherwise identical.
+
+<Callout type="tip" title="If you used the RC">
+If you shipped an app using React 19 RC, you have a debt window where users might have cached the old JavaScript. Force a hard refresh or bump your cache-busting version after the upgrade.
+</Callout>
+
+## 5. Test Renderer is deprecated
+
+react-test-renderer is officially deprecated. It still works in React 19 but prints warnings. It will be removed in React 20.
+
+**What breaks:**
+
+```jsx
+// React 18: Common in older test suites
+import TestRenderer from 'react-test-renderer';
+
+const testRenderer = TestRenderer.create(<MyComponent />);
+const testInstance = testRenderer.root;
+```
+
+**The fix:**
+
+Migrate to React Testing Library:
+
+```jsx
+// React 19: The modern approach
+import { render, screen } from '@testing-library/react';
+
+render(<MyComponent />);
+expect(screen.getByText('Hello')).toBeInTheDocument();
+```
+
+**Why this matters:**
+
+React Testing Library tests user behavior, not implementation details. They are more resilient to refactors. But migration takes time if you have 200 tests using TestRenderer.
+
+My approach: migrate tests incrementally. Do not block the React 19 upgrade for test migration. Suppress the warning and create a tech debt ticket.
+
+<Callout type="warning" title="Snapshot tests">
+If you use TestRenderer for snapshot tests, those snapshots will change when you switch to Testing Library. Budget time for snapshot updates. Or better yet, delete snapshots and write explicit assertions.
+</Callout>
+
+## 6. Removed propTypes from production builds
+
+React 19 no longer checks propTypes in production. They were already stripped by most build tools, but if you had a custom build setup that kept them, they are now ignored entirely.
+
+**What this means:**
+
+If you relied on propTypes for runtime validation in production, that validation no longer happens. Use Zod or TypeScript instead.
+
+```jsx
+// This still works in development but is ignored in production
+MyComponent.propTypes = {
+  name: PropTypes.string.isRequired
+};
+
+// React 19 production: No runtime check. No error if name is missing.
+```
+
+**The fix:**
+
+If you need runtime validation, add Zod:
+
+```jsx
+import { z } from 'zod';
+
+const PropsSchema = z.object({
+  name: z.string()
+});
+
+function MyComponent(props) {
+  const { name } = PropsSchema.parse(props);
+  return <div>{name}</div>;
+}
+```
+
+<Callout type="info" title="propTypes are not deleted">
+You can still use propTypes in development. They just do not run in production. Most developers should leave them as documentation and add Zod for runtime safety.
+</Callout>
+
+## 7. The element ref callback change
+
+In React 19, ref callbacks now fire with null when the component unmounts. This was inconsistent in React 18.
+
+**What breaks:**
+
+```jsx
+// React 18: This might not fire on unmount in some cases
+<input ref={(node) => {
+  if (node) {
+    node.focus();
+  }
+}} />
+```
+
+**The fix:**
+
+Handle the cleanup case:
+
+```jsx
+// React 19: Always handle null
+<input ref={(node) => {
+  if (node) {
+    node.focus();
+  } else {
+    // Cleanup when unmounting
+    console.log('Input removed from DOM');
+  }
+}} />
+```
+
+Most code already handled this correctly. But if you have refs that assume the node is always present, they will now receive null during unmount.
+
+## 8. The complete migration checklist
+
+**Before upgrading:**
+
+- [ ] Run the React 19 codemod: `npx @react-codemods/react-19`
+- [ ] Check for string refs in your code and node_modules
+- [ ] Check for defaultProps on function components
+- [ ] Check for ReactDOM.render in tests and entry points
+- [ ] Check for useFormState (RC only)
+- [ ] Review third-party libraries for React 19 compatibility
+- [ ] Create a branch: react-19-migration
+
+**During upgrade:**
+
+- [ ] Update package.json: react and react-dom to ^19.0.0
+- [ ] Delete node_modules and package-lock.json
+- [ ] Run npm install
+- [ ] Fix any build errors from the codemod
+- [ ] Run your test suite
+- [ ] Fix failing tests (usually related to render or refs)
+- [ ] Test every route manually
+
+**After upgrade:**
+
+- [ ] Run Lighthouse performance audit (should be same or better)
+- [ ] Check browser console for new warnings
+- [ ] Deploy to staging
+- [ ] Run end-to-end tests (Cypress, Playwright)
+- [ ] Monitor error tracking (Sentry) for 48 hours after production deploy
+<Callout type="tip" title="The rollback plan">
+Keep your React 18 branch alive for one week after deploy. If a critical bug surfaces, revert immediately. Do not try to hotfix under pressure.
+</Callout>
+
+## 9. Library compatibility matrix
+
+Not all libraries support React 19 yet. Here is what I found in August 2026:
+
+| Library | React 19 Status | Action Needed |
+|---------|-----------------|---------------| 
+| React Router v6 | Supported | No changes |
+| TanStack Query v5 | Supported | No changes |
+| Zustand v4 | Supported | No changes |
+| React Hook Form v7 | Supported | No changes |
+| MUI v5 | Supported | No changes |
+| Ant Design v5 | Partial | Some warnings about refs |
+| React Bootstrap v2 | Broken | Uses string refs, upgrade to v3 |
+| React DnD v16 | Broken | Uses legacy context, wait for v17 |
+| Styled Components v5 | Partial | Upgrade to v6 for full support |
+| Enzyme | Dead | Migrate to Testing Library |
+<Callout type="warning" title="Check before you upgrade">
+Visit the library's GitHub issues page and search for "React 19". If there are open PRs or issues without responses, the library is not ready. Do not be the first to find the bug in production.
+</Callout>
+
+## 10. The codemod deep dive
+
+The official React 19 codemod handles most mechanical changes. Here is what it does and what it misses.
+
+**What it handles:**
+
+- ReactDOM.render → createRoot().render()
+- ReactDOM.hydrate → hydrateRoot()
+- ReactDOM.unmountComponentAtNode → root.unmount()
+- defaultProps on function components → default parameters
+- ReactDOM.render in tests → createRoot pattern
+
+**What it misses:**
+
+- String refs in node_modules (not your code)
+- Custom test utilities that wrap ReactDOM.render
+- Micro-frontend mount points
+- Storybook preview files
+
+**How to run it:**
+
+```bash
+npx @react-codemods/react-19 src/
+```
+
+Review every change in git diff before committing. The codemod is conservative but not perfect.
+
+<Callout type="info" title="TypeScript support">
+The codemod works with .tsx files but may lose type annotations in complex cases. Run TypeScript compiler after the codemod to catch any type errors: `npx tsc --noEmit`
+</Callout>
+
+## Conclusion
+
+You now have a React 19 app that builds, tests pass, and legacy APIs are gone. The foundation is clean.
+
+**Next steps:**
+
+- Enable the React 19 Compiler to delete your manual memoization
+- Migrate forms to useActionState for simpler code
+- Fix any Server Components pitfalls if you use Next.js 16
+
+The upgrade is not the end. It is the beginning of writing modern React.
+
+---
+
+**Written by Jafar**
+
+Full Stack Developer & Founder | StackFromZero
+
+Jafar builds developer education platforms and writes about React, Spring Boot, and growing a tech career from Africa. He migrated three production apps to React 19 in 2026 and documented every breaking change so you do not have to debug on a Sunday night.

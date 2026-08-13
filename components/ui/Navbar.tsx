@@ -9,6 +9,7 @@ import { gsap, useGSAP, ScrollTrigger, prefersReducedMotion } from "@/lib/animat
 const navLinks = [
   { href: "/", label: "Home" },
   { href: "/blog", label: "Blog" },
+  { href: "/tools", label: "Tools" },
   { href: "/about", label: "About" },
   { href: "/newsletter", label: "Newsletter" },
 ];
@@ -77,9 +78,13 @@ export default function Navbar() {
     <nav
       ref={navRef}
       data-animate="nav"
-      className="navbar navbar-expand-lg sticky-top border-bottom border-custom"
+      className="navbar navbar-expand-lg sticky-top"
       data-bs-theme="dark"
-      style={{ backgroundColor: TRANSPARENT_BG, backdropFilter: "blur(10px)" }}
+      style={{
+        backgroundColor: TRANSPARENT_BG,
+        backdropFilter: "blur(14px)",
+        borderBottom: "1px solid rgba(255,255,255,0.08)",
+      }}
     >
       <div className="container">
         <Link className="navbar-brand fw-bold d-flex align-items-center gap-2" href="/">

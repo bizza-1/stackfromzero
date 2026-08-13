@@ -1,0 +1,520 @@
+---
+title: "TanStack Query v5: What Changed and Why Upgrade"
+description: "TanStack Query v5 broke my entire data layer. Query keys changed. Error handling moved. Mutations got stricter. Here is exactly what changed, why the team did it, and how to migrate without losing your mind."
+date: "2026-08-18"
+tags: ["TanStack Query", "React", "Data Fetching", "Migration", "Tutorial"]
+series: "Full Stack Foundations"
+seriesOrder: 14
+image: "/images/covers/tanstack-v5-hero.png"
+published: true
+---
+
+Skip to content
+
+[Home](/) &gt; [React](/tags/react) &gt; TanStack Query v5
+
+# TanStack Query v5: What Changed and Why Upgrade
+
+I upgraded StackFromZero from TanStack Query v4 to v5 in July 2026. I expected a smooth afternoon. I got a weekend of red squiggly lines. Every useQuery call needed new syntax. Every mutation lost its callbacks. My custom hooks broke because query keys were no longer strings. The TypeScript errors were so dense I considered downgrading and pretending v5 did not exist.
+
+I am glad I did not. v5 is smaller, faster, and removes the footguns that caused half my bugs. But the migration is not a version bump. It is a refactor. This guide is the refactor I wish I had.
+
+By: Jafar
+13 min
+Last updated: August 18, 2026
+
+![TanStack Query v5 logo with migration arrows](/images/covers/tanstack-v5-hero.png)
+
+## Key Takeaways
+
+- **Query keys must be arrays.** String keys like `['todos']` still work, but the internal hashing changed. Consistent array structure is now enforced.
+- **Error handling moved to the component boundary.** The `onError` callback is removed from `useQuery`. Use `throwOnError` + Error Boundaries, or handle errors in the UI directly.
+- **`useSuspenseQuery` is stable.** No more experimental flags. Suspense integration is the recommended pattern for Server Components and loading states.
+- **Mutations are stricter.** `mutate` no longer returns a promise. Use `mutateAsync` if you need await. This prevents fire-and-forget bugs.
+- **The bundle is 20% smaller.** Tree-shaking improved. Unused features are stripped automatically.
+- **The codemod handles 70% of the work.** Run it before touching anything manually.
+
+<Callout type="warning" title="Do not upgrade during a sprint">
+I upgraded on a Friday thinking it would take 2 hours. It took 2 days. The codemod missed my custom hooks. My E2E tests failed on mutation timing. Upgrade when you have buffer time, not when a client is waiting.
+</Callout>
+
+## 1. The new query key structure
+
+In v4, query keys were loose. You could pass a string, an array, or a mixed bag. v5 enforces arrays and changes how they are hashed.
+
+**What breaks:**
+
+```typescript
+// v4: This worked but was inconsistent
+useQuery('todos', fetchTodos);                    // String key
+useQuery(['todos', id], fetchTodo);               // Array key
+useQuery(['todos', { status: 'done' }], fetchTodos); // Object in array
+```
+
+**The fix:**
+
+```ts
+// v5: Keys must be arrays. Objects must be stable.
+useQuery({ queryKey: ['todos'], queryFn: fetchTodos });
+useQuery({ queryKey: ['todos', id], queryFn: fetchTodo });
+useQuery({ queryKey: ['todos', { status: 'done' }], queryFn: fetchTodos });
+```
+
+**The new object syntax is required.** No more positional arguments.
+
+**The custom hook problem:**
+I had a custom hook that wrapped useQuery:
+```ts
+// v4: My custom hook
+function useTodos(filter: string) {
+  return useQuery(['todos', filter], () => fetchTodos(filter));
+}
+```
+
+In v5, this breaks because the key structure is wrong for cache invalidation.
+
+**The fix:**
+```ts
+// v5: Updated custom hook
+function useTodos(filter: string) {
+  return useQuery({
+    queryKey: ['todos', { filter }],
+    queryFn: () => fetchTodos(filter)
+  });
+}
+```
+
+Notice `{ filter }` instead of just `filter`. v5 serializes objects more predictably. Primitives like strings and numbers are fine, but objects should be structured for clarity.
+<Callout type="tip" title="The query key factory pattern">
+Use a factory function to keep keys consistent. This is the pattern the TanStack team recommends:
+```ts
+const todoKeys = {
+  all: ['todos'] as const,
+  lists: () => [...todoKeys.all, 'list'] as const,
+  list: (filters: string) => [...todoKeys.lists(), { filters }] as const,
+  details: () => [...todoKeys.all, 'detail'] as const,
+  detail: (id: number) => [...todoKeys.details(), id] as const,
+};
+
+// Usage
+useQuery({ queryKey: todoKeys.list('active'), queryFn: fetchTodos });
+useQuery({ queryKey: todoKeys.detail(1), queryFn: fetchTodo });
+```
+
+This prevents the typo that cost me 3 hours: `['todos']` vs `['todo']` vs `['todos', 'list']`.
+
+## 2. Error handling: goodbye onError
+In v4, useQuery had an onError callback. It was convenient. It was also a trap because it ran for every observer, causing duplicate error tracking.
+
+**What breaks:**
+```ts
+// v4: This is gone
+useQuery(['user', id], fetchUser, {
+  onError: (err) => {
+    toast.error(err.message); // Fires for every component using this query
+  }
+});
+```
+
+**The fix:**
+
+Handle errors in the UI, or use Error Boundaries for catastrophic failures.
+```ts
+// v5: Handle errors in the component
+function UserProfile({ id }: { id: number }) {
+  const { data, error, isError } = useQuery({
+    queryKey: ['user', id],
+    queryFn: () => fetchUser(id)
+  });
+
+  if (isError) {
+    return <ErrorCard message={error.message} />;
+  }
+
+  return <div>{data.name}</div>;
+}
+```
+
+**For global error handling, use the QueryClient config:**
+```ts
+const queryClient = new QueryClient({
+  queryCache: new QueryCache({
+    onError: (error, query) => {
+      // Fires once per query, not per observer
+      if (query.meta?.errorMessage) {
+        toast.error(query.meta.errorMessage);
+      }
+    }
+  })
+});
+```
+
+**Usage with meta:**
+
+```ts
+useQuery({
+  queryKey: ['user', id],
+  queryFn: () => fetchUser(id),
+  meta: { errorMessage: 'Failed to load user profile' }
+});
+```
+<Callout type="warning" title="The toast spam problem">
+In v4, if 3 components used the same query and it failed, you got 3 toast notifications. In v5, `queryCache.onError` fires once. Move your global error tracking there. Keep local error handling in the component.
+</Callout>
+
+## 3. useSuspenseQuery is stable
+The biggest feature for React 19 users. useSuspenseQuery is no longer experimental. It is the recommended way to fetch data in components that use React Suspense.
+
+**The old way (still works but not recommended):**
+```ts
+function UserProfile({ id }: { id: number }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ['user', id],
+    queryFn: () => fetchUser(id)
+  });
+
+  if (isLoading) return <Spinner />;
+  if (!data) return <NotFound />;
+
+  return <div>{data.name}</div>;
+}
+```
+
+**The new way:**
+```ts
+import { useSuspenseQuery } from '@tanstack/react-query';
+
+function UserProfile({ id }: { id: number }) {
+  const { data } = useSuspenseQuery({
+    queryKey: ['user', id],
+    queryFn: () => fetchUser(id)
+  });
+
+  // No loading state. No null check. Suspense handles it.
+  return <div>{data.name}</div>;
+}
+```
+
+**Wrap it in a Suspense boundary:**
+```tsx
+<Suspense fallback={<Spinner />}>
+  <UserProfile id={1} />
+</Suspense>
+```
+
+**Why this is better:**
+- Loading states live at the layout level, not scattered in components
+- Error boundaries catch query errors naturally
+- No `if (isLoading)` boilerplate in every component
+- Works seamlessly with React 19 Server Components
+<Callout type="info" title="The TypeScript difference">
+`useSuspenseQuery` guarantees `data` is defined. The return type is not `User | undefined`. It is `User`. TypeScript knows Suspense will not render the component until data exists.
+</Callout>
+
+## 4. Mutations got stricter
+This change caught me off guard and broke 4 of my form submissions.
+
+**What breaks:**
+```ts
+// v4: mutate returned a promise
+const mutation = useMutation(createTodo);
+
+// This worked in v4 but is dangerous
+mutation.mutate({ title: 'Hello' });
+const result = await mutation.mutate({ title: 'Hello' }); // Fires twice!
+```
+
+**The fix:**
+
+`mutate` is fire-and-forget. It does not return a promise. If you need to await, use `mutateAsync`.
+```ts
+const mutation = useMutation({
+  mutationFn: createTodo
+});
+
+// Fire and forget
+mutation.mutate({ title: 'Hello' });
+
+// Await the result
+try {
+  const result = await mutation.mutateAsync({ title: 'Hello' });
+  console.log(result.id);
+} catch (err) {
+  console.error(err);
+}
+```
+
+**Callbacks moved to options:**
+In v4, mutations had onMutate, onError, onSuccess, and onSettled directly on the mutation object. In v5, they move to the mutate call options.
+```ts
+// v4: Callbacks on the mutation
+const mutation = useMutation(createTodo, {
+  onSuccess: () => queryClient.invalidateQueries(['todos']),
+  onError: (err) => toast.error(err.message)
+});
+```
+
+**V5: Callbacks on the mutate call (or use useEffect)**
+
+```ts
+const mutation = useMutation({
+  mutationFn: createTodo,
+  onSuccess: () => queryClient.invalidateQueries({ queryKey: ['todos'] })
+});
+```
+<Callout type="warning" title="The double-submit bug">
+I had a form that called `await mutation.mutate(data)` in v4. In v5, `mutate` does not return a promise, so the await did nothing. The form submitted twice because my `onSubmit` handler did not prevent default properly. Always use `mutateAsync` if you need to await.
+</Callout>
+
+## 5. The v4 to v5 migration steps
+
+**Step 1: Install v5**
+```bash
+npm install @tanstack/react-query@latest
+npm install -D @tanstack/eslint-plugin-query
+```
+
+**Step 2: Run the codemod**
+
+```bash
+npx @tanstack/react-query-codemod
+```
+
+**This handles:**
+- Positional arguments to object syntax
+- onError removal from useQuery
+- cacheTime renamed to gcTime
+- isLoading renamed to isPending (for queries)
+
+**Step 3: Fix what the codemod missed**
+The codemod does not handle:
+Custom hooks with query keys
+Mutation callbacks in your components
+useErrorBoundary migration
+placeholderData replacing keepPreviousData
+
+**Step 4: Rename isLoading to isPending**
+In v5, isLoading only means "no cached data and fetching." isPending means "no data yet" which includes loading and error states without data.
+```ts
+// v4
+const { isLoading, data } = useQuery({...});
+
+// v5
+const { isPending, data } = useQuery({...});
+```
+
+For mutations, `isLoading` is renamed to `isPending` entirely.
+
+**Step 5: Update cacheTime to gcTime**
+```ts
+// v4
+useQuery({
+  queryKey: ['todos'],
+  queryFn: fetchTodos,
+  cacheTime: 1000 * 60 * 5
+});
+
+// v5
+useQuery({
+  queryKey: ['todos'],
+  queryFn: fetchTodos,
+  gcTime: 1000 * 60 * 5
+});
+```
+
+**Step 6: Test everything**
+Run your unit tests. Run your E2E tests. Click every form. Refresh every page. The codemod is good but not perfect.
+
+<Callout type="tip" title="The ESLint plugin">
+Install `@tanstack/eslint-plugin-query`. It catches deprecated patterns automatically.
+
+```js
+// .eslintrc.js
+module.exports = {
+  plugins: ['@tanstack/query'],
+  rules: {
+    '@tanstack/query/exhaustive-deps': 'error',
+    '@tanstack/query/no-rest-destructuring': 'error',
+    '@tanstack/query/stable-query-client': 'error'
+  }
+};
+```
+</Callout>
+
+## 6. Offline improvements for African networks
+This is the feature that sold me on v5. The offline support is significantly better for developers on unreliable networks.
+
+**Network mode:**
+
+v5 introduces `networkMode` which controls how queries behave when offline.
+```ts
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      networkMode: 'offlineFirst' // Use cache, retry when online
+    }
+  }
+});
+```
+
+| Mode | Behavior | Best For |
+|------|----------|----------|
+| online | Pause when offline | Default, simple apps |
+| offlineFirst | Use stale cache, refetch when online | Unreliable networks |
+| always | Always fetch, even offline | Local development |
+
+For StackFromZero, `offlineFirst` is essential. When MTN drops or NEPA takes the light, the app still shows cached data instead of a blank screen.
+
+**Retry delays:**
+v5 uses exponential backoff by default, but you can customize it for slow networks.
+```ts
+useQuery({
+  queryKey: ['todos'],
+  queryFn: fetchTodos,
+  retry: 3,
+  retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000)
+  // 1s, 2s, 4s, then cap at 30s
+});
+```
+
+**For 2G networks, increase the cap:**
+```ts
+retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 60000)
+// Wait up to 60 seconds before giving up
+```
+<Callout type="info" title="The persistent cache">
+Combine v5 with `@tanstack/react-query-persist-client` and IndexedDB. Your cache survives browser restarts and phone reboots. I covered this in [The Complete Guide to Offline-First React Apps](/blog/offlinefirstreact).
+</Callout>
+
+## 7. The complete before and after
+Here is a full component migrated from v4 to v5.
+
+**v4:**
+
+```ts
+// v4:
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+
+function TodoList() {
+  const queryClient = useQueryClient();
+  const { data, isLoading, error } = useQuery('todos', fetchTodos, {
+    onError: (err) => console.error(err)
+  });
+
+  const mutation = useMutation(createTodo, {
+    onSuccess: () => queryClient.invalidateQueries('todos')
+  });
+
+  if (isLoading) return <div>Loading...</div>;
+  if (error) return <div>Error: {error.message}</div>;
+
+  return (
+    <div>
+      <ul>
+        {data.map((todo) => (
+          <li key={todo.id}>{todo.title}</li>
+        ))}
+      </ul>
+      <button onClick={() => mutation.mutate({ title: 'New todo' })}>
+        Add Todo
+      </button>
+    </div>
+  );
+}
+```
+
+**v5:**
+
+```ts
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+
+const todoKeys = {
+  all: ['todos'] as const,
+  lists: () => [...todoKeys.all, 'list'] as const,
+};
+
+function TodoList() {
+  const queryClient = useQueryClient();
+  const { data, isPending, error, isError } = useQuery({
+    queryKey: todoKeys.lists(),
+    queryFn: fetchTodos
+  });
+
+  const mutation = useMutation({
+    mutationFn: createTodo,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: todoKeys.all });
+    }
+  });
+
+  if (isPending) return <div>Loading...</div>;
+  if (isError) return <div>Error: {error.message}</div>;
+
+  return (
+    <div>
+      <ul>
+        {data.map((todo) => (
+          <li key={todo.id}>{todo.title}</li>
+        ))}
+      </ul>
+      <button onClick={() => mutation.mutate({ title: 'New todo' })}>
+        Add Todo
+      </button>
+    </div>
+  );
+}
+```
+
+<Callout type="tip" title="The diff at a glance">
+- `useQuery('todos', fetchTodos, opts)` → `useQuery({ queryKey: ['todos'], queryFn: fetchTodos, ...opts })`
+- `isLoading` → `isPending`
+- `onError` removed from `useQuery`
+- `cacheTime` → `gcTime`
+- `invalidateQueries('todos')` → `invalidateQueries({ queryKey: ['todos'] })`
+- `mutate()` no longer returns a promise
+</Callout>
+
+## 8. What I wish I knew before starting
+The codemod is a starting point, not a finish line. It will get you 70% of the way there. The remaining 30% is where the bugs live. I spent two days fixing edge cases the codemod missed:
+
+- **Custom hooks that spread props into useQuery:** The codemod cannot trace dynamic query keys.
+- **Mutation callbacks that relied on closure variables:** Moving onSuccess from the mutation definition to the mutate call changes when variables are captured.
+- **TypeScript inference on queryFn return types:** v5 is stricter. If your fetchTodos returns `Promise<Todo[] | undefined>`, v5 will make you handle that undefined explicitly.
+
+**Test your error boundaries.** v5 encourages throwing errors to boundaries more than v4 did. If you have not set up React Error Boundaries yet, do it before migrating. I use [react-error-boundary](https://github.com/bvaughn/react-error-boundary) and it took 10 minutes to wire up.
+
+**Check your DevTools.** The TanStack Query DevTools got a redesign in v5. The new UI makes it easier to see which queries are fetching, stale, or inactive. It also surfaces networkMode status, which helped me verify that `offlineFirst` was actually working on StackFromZero.
+
+## 9. Is the upgrade worth it?
+
+For most apps, yes. But not because of the new features alone. The real value is that v5 forces you to write more correct code:
+
+- No more accidental double-submits from `await mutation.mutate()`
+- No more toast spam from `onError` firing per observer
+- No more cache invalidation typos if you use the query key factory pattern
+- Better offline support out of the box
+
+The migration took me three full days for a medium-sized React Native + web codebase. Two of those days were fixing bugs I had already written but v4 was hiding. v5 surfaces them.
+If you are starting a new project today, use v5. If you are on v4 and everything works, schedule the migration for a quiet sprint. Do not try to ship features and migrate at the same time. I tried that. It was a bad week.
+
+<Callout type="info" title="The React 19 factor">
+If you are upgrading to React 19, prioritize `useSuspenseQuery`. It removes so much boilerplate that the v5 migration pays for itself just in deleted lines of code.
+</Callout>
+
+## Final checklist
+Before you deploy your v5 migration:
+
+- [ ] Run the codemod: `npx @tanstack/react-query-codemod`
+- [ ] Install the ESLint plugin and fix all warnings
+- [ ] Replace all `isLoading` with `isPending` (queries) or `isPending` (mutations)
+- [ ] Replace all `cacheTime` with `gcTime`
+- [ ] Move mutation callbacks from mutation definition to mutate calls, or use useEffect
+- [ ] Add query key factory functions for every domain entity
+- [ ] Test every form submission (mutations changed the most)
+- [ ] Test offline behavior with `networkMode: 'offlineFirst'`
+- [ ] Verify Error Boundaries catch query errors
+- [ ] Run your E2E suite twice
+
+If you have questions, the TanStack Discord is active and the maintainers are patient. I asked three dumb questions and got helpful answers in minutes.
+
+Good luck with the migration. Your future self will thank you when the cache invalidation actually works.
