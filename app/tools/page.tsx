@@ -33,6 +33,20 @@ const tools = [
       "Decode a JWT’s header and payload, read every claim in plain English, and see exp/iat/nbf as real dates with live countdowns. Fully client-side.",
     tag: "Auth & tokens",
   },
+  {
+    href: "/tools/background-remover",
+    icon: "bi-image-alt",
+    title: "Background remover",
+    description: "Remove a photo background with a local AI model and download a transparent PNG. Your image stays on your device.",
+    tag: "Image editing",
+  },
+  {
+    href: "/tools/image-resizer",
+    icon: "bi-aspect-ratio",
+    title: "Image resizer",
+    description: "Resize images to exact pixel dimensions, keep their aspect ratio, and export JPEG, PNG, or WebP locally.",
+    tag: "Image editing",
+  },
 ];
 
 export default function ToolsPage() {
@@ -53,7 +67,7 @@ export default function ToolsPage() {
 
       <div className="row g-4">
         {tools.map((tool) => (
-          <div className="col-12 col-md-4" key={tool.href}>
+          <div className="col-12 col-md-6 col-lg-4" key={tool.href}>
             <Link
               href={tool.href}
               className="card bg-card border-custom rounded-4 h-100 text-decoration-none text-body tool-card"
