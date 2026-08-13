@@ -214,6 +214,8 @@ server.tomcat.threads.max=10000
 
 This is not a typo. Ten thousand threads. On 512MB RAM. That is the power of virtual threads.
 
+</Callout>
+
 ## 5. The pinning problem: synchronized blocks kill virtual threads
 Here is the mistake that cost me 6 hours of debugging.
 Virtual threads are mounted on platform threads called "carrier threads." When a virtual thread hits a synchronized block or calls a native method, it "pins" the carrier thread. The carrier thread cannot be reused for other virtual threads until the synchronized block exits.

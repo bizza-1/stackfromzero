@@ -3,6 +3,11 @@ import remarkGfm from "remark-gfm";
 import rehypeSlug from "rehype-slug";
 import rehypeHighlight from "rehype-highlight";
 import rehypeAutolinkHeadings from "rehype-autolink-headings";
+import { common } from "lowlight";
+import groovy from "highlight.js/lib/languages/groovy";
+import properties from "highlight.js/lib/languages/properties";
+
+const highlightLanguages = { ...common, groovy, properties };
 
 export const Article = defineDocumentType(() => ({
   name: "Article",
@@ -49,7 +54,7 @@ export default makeSource({
     remarkPlugins: [remarkGfm],
     rehypePlugins: [
       rehypeSlug,
-      [rehypeHighlight, { detect: true, ignoreMissing: true }],
+      [rehypeHighlight, { detect: true, languages: highlightLanguages }],
       [
         rehypeAutolinkHeadings,
         {
