@@ -29,11 +29,16 @@ export default function BackgroundRemover() {
 
   async function remove() {
     if (!file) return;
-    setError(""); setStatus("Loading the on-device model…");
+    setError(""); setStatus("Uploading image for background removal…");
     try {
-      const { removeBackground } = await import("@imgly/background-removal");
-      setStatus("Separating the subject from its background…");
-      const output = await removeBackground(file, { progress: (_key, current, total) => setStatus(`Processing image… ${Math.round((current / total) * 100)}%`) });
+      const data = new FormData();
+      data.append("image", file);
+      const response = await fetch("/api/remove-background", { method: "POST", body: data });
+      if (!response.ok) {
+        const body = await response.json().catch(() => null) as { error?: string } | null;
+        throw new Error(body?.error || "Could not remove the background. Please try again.");
+      }
+      const output = await response.blob();
       if (result) URL.revokeObjectURL(result);
       setResult(URL.createObjectURL(output)); setStatus("Done — your PNG has a transparent background.");
     } catch (cause) {
@@ -44,7 +49,7 @@ export default function BackgroundRemover() {
   return <div className="card bg-card border-custom rounded-4"><div className="card-body p-4">
     <label htmlFor="background-image" className="h6 fw-bold d-block mb-2">Choose an image</label>
     <input id="background-image" className="form-control bg-card border-custom text-body" type="file" accept="image/*" onChange={(e) => selectImage(e.target.files?.[0])} />
-    <p className="small text-secondary-custom mt-2 mb-4">The model runs in your browser. Images are never uploaded to this site.</p>
+    <p className="small text-secondary-custom mt-2 mb-4">Images up to 12 MB are securely sent for processing and are not stored by this site.</p>
     {preview && <div className="row g-4 align-items-start">
       <div className="col-md-6"><p className="small fw-semibold mb-2">Original</p><img src={preview} alt="Original upload" className="img-fluid rounded-3 border border-custom" /></div>
       <div className="col-md-6"><p className="small fw-semibold mb-2">Transparent result</p>{result ? <div className="rounded-3 border border-custom p-2" style={{ backgroundImage: "linear-gradient(45deg,#d1d5db 25%,transparent 25%),linear-gradient(-45deg,#d1d5db 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#d1d5db 75%),linear-gradient(-45deg,transparent 75%,#d1d5db 75%)", backgroundSize: "20px 20px", backgroundPosition: "0 0,0 10px,10px -10px,-10px 0" }}><img src={result} alt="Background removed" className="img-fluid" /></div> : <div className="rounded-3 border border-custom p-5 text-center text-secondary-custom">Your transparent PNG will appear here.</div>}</div>
