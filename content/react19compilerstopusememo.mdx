@@ -1,4 +1,4 @@
----
+﻿---
 title: "React 19 Compiler: Stop Writing useMemo and useCallback"
 description: "React 19 Compiler is stable. Most developers still over-memoize. Here is exactly what the Compiler optimizes, when manual memoization still matters, and how to migrate from React 18 without breaking your app."
 date: "2026-08-13"
@@ -83,6 +83,8 @@ function Dashboard({ data }) {
 The Compiler sees that data is a prop, analyzes whether it is stable, and automatically memoizes processed if the filter and map are expensive enough to justify it.
 
 **Delete useCallback for event handlers passed to children:**
+
+```jsx
 // React 18: You wrote this
 function Parent({ onUpdate }) {
   const handleClick = useCallback((id) => {
@@ -101,6 +103,8 @@ function Parent({ onUpdate }) {
 The Compiler detects that the inline function is passed to a child and automatically ensures the child does not re-render unnecessarily. You do not need the mental overhead of dependency arrays.
 
 **Delete React.memo for most components:**
+
+```jsx
 // React 18: You wrote this
 const ExpensiveList = React.memo(function ExpensiveList({ items }) {
   return items.map(item => <ComplexItem key={item.id} data={item} />);
@@ -135,8 +139,10 @@ function Chart({ data }) {
   return <ChartLibrary config={chartConfig} />;
 }
 If ChartLibrary does deep equality checks on its config prop, recreating the object causes unnecessary work. The Compiler sees the object literal but may not know that ChartLibrary is sensitive to reference equality. Keep the useMemo here.
-Keep useCallback for functions passed to custom hooks
-```
+
+**Keep useCallback for functions passed to custom hooks:**
+
+```jsx
 function useSearch(query) {
   const fetchResults = useCallback(async () => {
     const res = await fetch(`/api/search?q=${query}`);

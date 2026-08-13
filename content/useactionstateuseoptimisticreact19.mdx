@@ -1,4 +1,4 @@
----
+﻿---
 title: "useActionState + useOptimistic: Modern Forms in React 19"
 description: "React 19 killed the useState form pattern. useActionState handles submissions, pending states, and errors automatically. useOptimistic gives you instant UI updates with zero complexity. Here is exactly how they work."
 date: "2026-08-14"
@@ -391,8 +391,10 @@ export default function CommentSection({ postId, initialComments }) {
 This pattern used to require 80 lines of manual state juggling. Now it is 30 lines with two hooks.
 6. Error handling and retries
 What happens when the server is down? Or the user's data runs out mid-submission?
+
 useActionState gives you error state declaratively. But retries still need logic.
-jsx
+
+```jsx
 function LoginForm() {
   const [state, submitAction, isPending] = useActionState(login, null);
   const [attempts, setAttempts] = useState(0);

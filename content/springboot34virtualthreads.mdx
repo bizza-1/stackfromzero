@@ -1,4 +1,4 @@
----
+﻿---
 title: "Spring Boot 3.4 + Virtual Threads: 10,000 Requests on a Free Render Tier"
 description: "Java 21 virtual threads are now mainstream in Spring Boot 3.4. I enabled them on a 512MB Render instance and handled 10,000 concurrent requests without crashing. Here is exactly how they work, when they help, and the one mistake that will pin your threads and kill performance."
 date: "2026-08-17"
@@ -275,6 +275,7 @@ javap -c -p target/classes/com/example/*.class | grep monitorenter
 ```
 
 For third-party libraries, search their GitHub issues for "virtual threads" or "pinning." If they have not updated, you may need to replace them.
+</Callout>
 
 ## 6. Structured concurrency: the right way to spawn virtual threads
 If you manually spawn virtual threads, use structured concurrency. It is new in Java 21 and designed specifically for virtual threads.

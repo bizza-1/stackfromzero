@@ -1,4 +1,4 @@
----
+﻿---
 title: "TanStack Query v5: What Changed and Why Upgrade"
 description: "TanStack Query v5 broke my entire data layer. Query keys changed. Error handling moved. Mutations got stricter. Here is exactly what changed, why the team did it, and how to migrate without losing your mind."
 date: "2026-08-18"
@@ -85,8 +85,10 @@ function useTodos(filter: string) {
 ```
 
 Notice `{ filter }` instead of just `filter`. v5 serializes objects more predictably. Primitives like strings and numbers are fine, but objects should be structured for clarity.
+
 <Callout type="tip" title="The query key factory pattern">
 Use a factory function to keep keys consistent. This is the pattern the TanStack team recommends:
+
 ```ts
 const todoKeys = {
   all: ['todos'] as const,
@@ -102,6 +104,7 @@ useQuery({ queryKey: todoKeys.detail(1), queryFn: fetchTodo });
 ```
 
 This prevents the typo that cost me 3 hours: `['todos']` vs `['todo']` vs `['todos', 'list']`.
+</Callout>
 
 ## 2. Error handling: goodbye onError
 In v4, useQuery had an onError callback. It was convenient. It was also a trap because it ran for every observer, causing duplicate error tracking.
